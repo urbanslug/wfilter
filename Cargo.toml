@@ -1,0 +1,13 @@
+[package]
+name = "wfilter"
+version = "0.0.1-alpha"
+authors = ["Njagi Mwaniki <njagi+cargo@njagi.me>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+coitrees = "0.2.1"
+clap = "^2.33.0"
+paf = {git = "https://github.com/darcyabjones/paf.git"}
+libwfa = "0.1"

@@ -9,5 +9,4 @@ edition = "2018"
 [dependencies]
 coitrees = "0.2.1"
 clap = "^2.33.0"
-paf = {git = "https://github.com/darcyabjones/paf.git"}
 libwfa = "0.1"

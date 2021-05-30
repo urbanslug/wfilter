@@ -6,10 +6,13 @@ use types::PAF;
 use types::PafAlignment;
 
 fn main() {
+    // Parse CLI args
     let paf_file_path: String = cli::start();
 
+    // Parse the PAF input file
+    eprintln!("Parsing input PAF: {}", paf_file_path);
     let paf = PAF::from_file(&paf_file_path[..]);
+    let alignments: &Vec<PafAlignment> = paf.get_alignments();
 
-    let y: &PafAlignment = &paf.get_alignments()[0];
-    println!("{:#?}", y);
+    // Read the PAF into interval trees
 }

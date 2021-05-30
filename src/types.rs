@@ -34,6 +34,10 @@ use std::str::FromStr;
 
 use crate::io;
 
+// -------
+// Structs
+// --------
+// A struct over a single alignment, that is, a single line of a PAF file
 #[derive(Debug)]
 pub struct PafAlignment {
     query:           String, // Query sequence name
@@ -48,10 +52,18 @@ pub struct PafAlignment {
     // residue_matches: u32,    // Number of residue matches
     // block_len:       u32,    // Alignment block length
     // quality:         String, // Mapping quality (0-255; 255 for missing)
-    // cigar:           String, // 
+    // cigar:           String, // SAM style CIGAR string TODO: specify CIGAR version
 }
 
+// A struct over the entire PAF file
+#[derive(Debug)]
+pub struct PAF {
+    alignments: Vec<PafAlignment>
+}
 
+// -------
+// Traits
+// -------
 
 impl PafAlignment {
     pub fn from_lines(lines: Vec<String>) -> Vec<PafAlignment> {
@@ -79,21 +91,16 @@ impl PafAlignment {
     }
 }
 
-#[derive(Debug)]
-pub struct PAF {
-    alignments: Vec<PafAlignment>
-}
 
 impl PAF {
     pub fn from_file(file_name: &str) -> PAF {
-        eprintln!("Parsing input PAF: {}", file_name);
+        // read PAF file & return a vector of Strings for each line
+        let lines: Vec<String> = io::read_file(&file_name[..]);
 
-        // open file & read line by line
-        let lines = io::read_paf(&file_name[..]);
-        let v: Vec<PafAlignment> = PafAlignment::from_lines(lines);
+        // Parse each line into a PafAlignment
+        let alignments: Vec<PafAlignment> = PafAlignment::from_lines(lines);
 
-        let p: PAF = PAF{ alignments: v };
-        p
+        PAF{ alignments }
     }
 
     pub fn get_alignments(&self) -> &Vec<PafAlignment> {

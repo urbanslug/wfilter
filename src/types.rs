@@ -32,13 +32,15 @@ each line.
 use std::str;
 use std::str::FromStr;
 
+use std::convert::TryFrom;
+
 use crate::io;
 
 // -------
 // Structs
 // --------
 // A struct over a single alignment, that is, a single line of a PAF file
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PafAlignment {
     query:           String, // Query sequence name
     query_length:    u32,    // Query sequence length
@@ -88,6 +90,14 @@ impl PafAlignment {
             target_start:  u32::from_str(it[7]).unwrap(),
             target_end:    u32::from_str(it[8]).unwrap(),
         }
+    }
+
+    pub fn first(&self) -> i32 {
+        i32::try_from(self.query_start).expect("Couldn't get first")
+    }
+
+    pub fn last(&self) -> i32 {
+        i32::try_from(self.target_end).expect("Couldn't get last")
     }
 }
 

@@ -31,7 +31,7 @@ each line.
  */
 use std::str;
 use std::str::FromStr;
-
+use std::cmp;
 use std::convert::TryFrom;
 
 use crate::io;
@@ -63,9 +63,27 @@ pub struct PAF {
     alignments: Vec<PafAlignment>
 }
 
+pub struct CliArgs {
+    pub debug: bool,
+    pub input_paf: String,
+}
+
+
+
 // -------
 // Traits
 // -------
+
+
+impl CliArgs {
+    #[allow(dead_code)] // TODO: remove dead code
+    pub fn new() -> Self {
+        CliArgs {
+            debug: false,
+            input_paf: String::new(),
+        }
+    }
+}
 
 impl PafAlignment {
     pub fn from_lines(lines: Vec<String>) -> Vec<PafAlignment> {
@@ -93,11 +111,15 @@ impl PafAlignment {
     }
 
     pub fn first(&self) -> i32 {
-        i32::try_from(self.query_start).expect("Couldn't get first")
+        let alignment_lower_bound:u32 = cmp::min(self.query_start, self.target_start);
+        i32::try_from(alignment_lower_bound)
+            .expect("[PafAlignment::first] Could not convert u32 to i32")
     }
 
     pub fn last(&self) -> i32 {
-        i32::try_from(self.target_end).expect("Couldn't get last")
+        let alignment_upper_bound:u32 = cmp::min(self.query_end, self.target_end);
+        i32::try_from(alignment_upper_bound)
+            .expect("[PafAlignment::last] Could not convert u32 to i32")
     }
 }
 

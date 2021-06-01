@@ -26,7 +26,7 @@ pub fn start() -> types::CliArgs {
             Arg::with_name("debug")
                 .short("d")
                 .long("debug")
-                .help("Show debug statements [Default: false]")
+                .help("Show debug statements [Default: false]"),
         )
         .get_matches();
 

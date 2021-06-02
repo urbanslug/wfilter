@@ -1,5 +1,4 @@
-
-
+// Called align_wavefront_align.cpp in https://github.com/ekg/wflambda
 // use crate::wflambda::types::wavefront::AffineWavefronts;
 use super::types::wavefront::AffineWavefronts;
 use super::affine_wavefront_utils as utils;

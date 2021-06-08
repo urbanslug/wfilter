@@ -31,11 +31,8 @@ pub fn start() -> types::CliArgs {
         .get_matches();
 
     // Gets a value for config if supplied by user, or defaults to "default.conf"
-    let paf_file_path = matches.value_of("input_paf").unwrap();
-    let debug = matches.is_present("debug");
+    let paf_file_path: &str = matches.value_of("input_paf").unwrap();
+    let debug: bool = matches.is_present("debug");
 
-    types::CliArgs {
-        debug,
-        input_paf: String::from(paf_file_path),
-    }
+    types::CliArgs::new(debug, paf_file_path)
 }

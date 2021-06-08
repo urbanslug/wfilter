@@ -1,18 +1,17 @@
-use coitrees::COITree;
-
 use std::time::Instant;
+use coitrees::COITree;
 
 mod cli;
 mod io;
 mod types;
+// mod wflambda;
+mod paf;
+mod index;
 
-mod wflambda;
-
-//use wflambda::types;
-
+// use wflambda::types;
 use types::CliArgs;
-use types::PafAlignment;
-use types::PAF;
+use paf::PafAlignment;
+use paf::PAF;
 
 fn main() {
     // Parse CLI args

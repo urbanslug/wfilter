@@ -20,12 +20,12 @@ typedef int32_t awf_offset_t;
 
 pub mod wavefront {
 
-    type AwfOffset = i32;
+    pub type AwfOffset = usize;
 
     struct AffinePenalties {
-        a_match: i32,       // (Penalty representation; usually M <= 0) // match is a rust_keyword
-        mismatch: i32,      // (Penalty representation; usually X > 0)
-        gap_opening: i32,   // (Penalty representation; usually O > 0)
+        a_match: i32,     // (Penalty representation; usually M <= 0) // match is a rust_keyword
+        mismatch: i32,    // (Penalty representation; usually X > 0)
+        gap_opening: i32, // (Penalty representation; usually O > 0)
         gap_extension: i32, // (Penalty representation; usually E > 0)
     }
 
@@ -48,21 +48,23 @@ pub mod wavefront {
         penalties_strategy: WavefrontsPenaltiesStrategy, // Penalties adaptation strategy
     }
 
-    struct AffineWavefront {
+    
+    pub struct AffineWavefront {
         // Range
-        null: bool,   // Is null interval?
-        lo: i32,      // Effective lowest diagonal (inclusive)
-        hi: i32,      // Effective highest diagonal (inclusive)
-        lo_base: i32, // Lowest diagonal before reduction (inclusive)
-        hi_base: i32, // Highest diagonal before reduction (inclusive)
+        pub null: bool,   // Is null interval?
+        pub lo: usize,  // Effective lowest diagonal (inclusive)
+        pub hi: usize,  // Effective highest diagonal (inclusive)
+        pub lo_base: usize, // Lowest diagonal before reduction (inclusive)
+        pub hi_base: usize, // Highest diagonal before reduction (inclusive)
 
         // Offsets
-        offsets: AwfOffset, // Offsets
+        pub offsets: Vec<AwfOffset>, // Offsets
 
-       // TODO: make this an option type
-       // #ifdef AFFINE_LAMBDA_WAVEFRONT_DEBUG
-       // offsets_base: AwfOffset, // Offsets increment
-       // #endif
+                                /* TODO: make this an option type
+                                // #ifdef AFFINE_LAMBDA_WAVEFRONT_DEBUG
+                                // offsets_base: AwfOffset, // Offsets increment
+                                // #endif
+                                 */
     }
 
     struct EditCigar {
@@ -99,9 +101,11 @@ pub mod wavefront {
         min_k: i32,       // Maximum diagonal k (used for null-wf, display, and banding)
 
         // Wavefronts
-        // mwavefronts: AffineWavefront**,            // M-wavefronts
-        // iwavefronts: AffineWavefront**,            // I-wavefronts
-        // dwavefronts: AffineWavefront**,            // D-wavefronts
+        // reference to AffineWavefront
+        // pub mwavefronts: Vec<AffineWavefront>, // M-wavefronts
+        // iwavefronts: Vec<AffineWavefront>,     // I-wavefronts
+        // dwavefronts: Vec<AffineWavefront>,     // D-wavefronts
+        // make this an option type?
         wavefront_null: AffineWavefront, // Null wavefront (used to gain orthogonality)
 
         // Reduction
@@ -113,18 +117,25 @@ pub mod wavefront {
         // CIGAR
         edit_cigar: EditCigar, // Alignment CIGAR
 
+        // MM-like
+        // mm_allocator_t* mm_allocator;              // MM-Allocator
+        // wavefronts_mem: Vec< &'a Vec<AffineWavefront>>,         // MM-Slab for AffineWavefront (base)
+        // pub wavefronts_current: Vec< &'a Vec<AffineWavefront>>, // MM-Slab for AffineWavefront (next)
+
+        /*
         // MM
-        //mm_allocator_t* mm_allocator;              // MM-Allocator
-        //wavefronts_mem: AffineWavefront*,          // MM-Slab for AffineWavefront (base)
-        //wavefronts_current: AffineWavefront*,      // MM-Slab for AffineWavefront (next)
+        mm_allocator_t* mm_allocator;              // MM-Allocator
+        wavefronts_mem: AffineWavefront*,          // MM-Slab for AffineWavefront (base)
+        wavefronts_current: AffineWavefront*,      // MM-Slab for AffineWavefront (next)
 
         // STATS
-        //wavefronts_stats: wavefronts_stats_t*,     // Stats
+        wavefronts_stats: wavefronts_stats_t*,     // Stats
 
         // DEBUG
-        // TODO: make this an option type
-        // #ifdef AFFINE_LAMBDA_WAVEFRONT_DEBUG
-        // affine_table_t gap_affine_table;             // DP-Table encoded by the wavefronts
-        // #endif
+        TODO: make this an option type
+        #ifdef AFFINE_LAMBDA_WAVEFRONT_DEBUG
+          affine_table_t gap_affine_table;             // DP-Table encoded by the wavefronts
+        #endif
+        */
     }
 }

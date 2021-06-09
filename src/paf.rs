@@ -30,41 +30,47 @@ A PAF file may optionally contain SAM-like typed key-value pairs at the end of
 each line.
 */
 
-use coitrees::COITree;
-use coitrees::IntervalNode;
-use std::convert::TryFrom;
+use std::fmt;
 use std::str;
 use std::str::FromStr;
-use std::fmt;
 
-use crate::io;
+use super::io;
+use super::types;
 
 // A struct over a single line of a PAF file (a single alignment)
-// TODO: remove clone
-#[derive(Clone, PartialEq)]
+#[derive(PartialEq)]
 pub struct PafAlignment {
-    query: String,          // Query sequence name
-    query_length: u32,      // Query sequence length
-    pub query_start: u32,   // Query start (0-based; BED-like; closed)
-    pub query_end: u32,     // Query end (0-based; BED-like; open)
-    strand: char,           // Relative strand: "+" or "-"
-    target: String,         // target sequence name
-    target_length: u32,     // Target sequence length
-    pub target_start: u32,  // Target start on original strand (0-based)
-    pub target_end: u32,      // Target end on original strand (0-based)
+    query: String,             // Query sequence name
+    query_length: u32,         // Query sequence length
+    pub query_start: u32,      // Query start (0-based; BED-like; closed)
+    pub query_end: u32,        // Query end (0-based; BED-like; open)
+    pub strand: types::Strand, // Relative strand: "+" or "-"
+    target: String,            // target sequence name
+    target_length: u32,        // Target sequence length
+    pub target_start: u32,     // Target start on original strand (0-based)
+    pub target_end: u32,       // Target end on original strand (0-based)
     // residue_matches: u32,  // Number of residue matches
     // block_len: u32,        // Alignment block length
     // quality: String,       // Mapping quality (0-255; 255 for missing)
-   cigar: String,           // SAM style CIGAR string TODO: specify CIGAR version
+    pub cigar: String, // SAM style CIGAR string TODO: specify CIGAR version
 }
 
+#[allow(dead_code)]
 pub type Alignment = PafAlignment;
 
 impl PafAlignment {
-    pub fn new(query: &str, query_length: u32, query_start: u32, query_end: u32,
-               strand: char,
-               target: &str, target_length: u32, target_start: u32, target_end: u32,
-               cigar: &str) -> Self {
+    pub fn new(
+        query: &str,
+        query_length: u32,
+        query_start: u32,
+        query_end: u32,
+        strand: types::Strand,
+        target: &str,
+        target_length: u32,
+        target_start: u32,
+        target_end: u32,
+        cigar: &str,
+    ) -> Self {
         PafAlignment {
             query: String::from(query),
             query_length,
@@ -92,13 +98,21 @@ impl PafAlignment {
         // expensive
         // should return an Option<String> in case a field doens't exist
         let extract_field = |pattern: &str| -> String {
-           let f: &str = sam_fields
+            let f: &str = sam_fields
                 .iter()
-                .find(|s| { s.find(pattern) != None }) // if the field is found
+                .find(|s| s.find(pattern) != None) // if the field is found
                 .unwrap();
 
             // drop the cg chars
             String::from(&f[5..])
+        };
+
+        let extract_strand = || -> types::Strand {
+            if '+' == char::from_str(it[4]).unwrap() {
+                types::Strand::Forward
+            } else {
+                types::Strand::Reverse
+            }
         };
 
         //need a more robust way to index into the vector
@@ -107,7 +121,7 @@ impl PafAlignment {
             query_length: u32::from_str(it[1]).unwrap(),
             query_start: u32::from_str(it[2]).unwrap(),
             query_end: u32::from_str(it[3]).unwrap(),
-            strand: char::from_str(it[4]).unwrap(),
+            strand: extract_strand(),
             target: it[5].to_string(),
             target_length: u32::from_str(it[6]).unwrap(),
             target_start: u32::from_str(it[7]).unwrap(),
@@ -130,7 +144,6 @@ impl fmt::Debug for PafAlignment {
     }
 }
 
-
 // A struct over the entire PAF file
 #[derive(Debug)]
 pub struct PAF {
@@ -148,44 +161,25 @@ impl PAF {
         PAF { alignments }
     }
 
-    #[allow(dead_code)]
+    // A string of alignment lines seperated by newlines
+    pub fn from_str(alignment_strings: &str) -> PAF {
+        let alignments: Vec<PafAlignment> = alignment_strings
+            .lines()
+            .map(|l| PafAlignment::from_str(l))
+            .collect();
+
+        PAF { alignments }
+    }
+
     pub fn get_alignments(&self) -> &Vec<PafAlignment> {
         &self.alignments
     }
 
-    pub fn gen_query_coitree(&self) -> COITree<PafAlignment, u32> {
-        let interval_nodes: Vec<IntervalNode<PafAlignment, u32>> = self
-            .alignments
-            .iter()
-            .map(|a| {
-                let start = i32::try_from(a.query_start)
-                    .expect("[PAF::gen_query_coitree] Could not convert start u32 to i32");
-                let end = i32::try_from(a.query_end)
-                    .expect("[PAF::gen_query_coitree] Could not convert end u32 to i32");
-                IntervalNode::<PafAlignment, u32>::new(start, end, a.clone())
-            })
-            .collect();
+    #[allow(dead_code)]
+    pub fn gen_query_coitree(&self) {}
 
-        let query_coitree: COITree<PafAlignment, u32> = COITree::new(interval_nodes);
-        query_coitree
-    }
-
-    pub fn gen_target_coitree(&self) -> COITree<PafAlignment, u32> {
-        let interval_nodes: Vec<IntervalNode<PafAlignment, u32>> = self
-            .alignments
-            .iter()
-            .map(|a| {
-                let start = i32::try_from(a.target_start)
-                    .expect("[PAF::gen_target_coitree] Could not convert start u32 to i32");
-                let end = i32::try_from(a.target_end)
-                    .expect("[PAF::gen_target_coitree] Could not convert end u32 to i32");
-                IntervalNode::<PafAlignment, u32>::new(start, end as i32, a.clone())
-            })
-            .collect();
-
-        let target_coitree: COITree<PafAlignment, u32> = COITree::new(interval_nodes);
-        target_coitree
-    }
+    #[allow(dead_code)]
+    pub fn gen_target_coitree(&self) {}
 }
 
 #[cfg(test)]
@@ -200,9 +194,16 @@ qry\t330243\t0\t330243\t+\ttgt\t330243\t0\t330243\t330243\t330243\t60\tNM:i:0\tm
     fn test_parse_alignment() {
         let aln = PafAlignment::from_str(TEST_PAF_STRING);
         let aln2 = PafAlignment::new(
-            "qry", 330243, 0, 330243,
-            '+',
-            "tgt", 330243, 0, 330243, "330243M"
+            "qry",
+            330243,
+            0,
+            330243,
+            types::Strand::Forward,
+            "tgt",
+            330243,
+            0,
+            330243,
+            "330243M",
         );
 
         assert_eq!(aln, aln2);

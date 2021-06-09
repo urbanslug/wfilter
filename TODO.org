@@ -1,0 +1,12 @@
+* Intervals/index
+** TODO Solve incorrect interval computation in ~index::compute_match_intervals~
+So far the computing where the matches are seems to be off by a few bases I'm not sure why. For example in an a alignment for a:
+  - query running from ~41052~ to ~324759~ I find that the last interval is underestimated to end at ~324730~.
+  - target running from ~0~ to ~283680~ I find that the last interval is also underestimated ~283624~.
+** TODO Handle negative strand in ~index::compute_match_intervals~
+
+* wflambda
+** TODO Port wflambda to Rust
+  
+* Documentation
+** TODO Add diagrams from excalidraw

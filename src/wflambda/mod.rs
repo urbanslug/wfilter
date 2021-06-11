@@ -1,6 +1,4 @@
-pub mod types;
-
-pub mod affine_wavefront_extend;
+//pub mod gap_affine::affine_wavefront_extend;
 pub mod affine_wavefront_utils;
 pub mod align_wavefront_align;
 

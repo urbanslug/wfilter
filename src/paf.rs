@@ -59,6 +59,7 @@ pub struct PafAlignment {
 pub type Alignment = PafAlignment;
 
 impl PafAlignment {
+    #[allow(dead_code)] //TODO: Used in testing. Remove?
     pub fn new(
         query: &str,
         query_length: u32,
@@ -162,6 +163,8 @@ impl PAF {
     }
 
     // A string of alignment lines seperated by newlines
+    // TODO: Used in testing. Remove?
+    #[allow(dead_code)]
     pub fn from_str(alignment_strings: &str) -> PAF {
         let alignments: Vec<PafAlignment> = alignment_strings
             .lines()
@@ -174,12 +177,6 @@ impl PAF {
     pub fn get_alignments(&self) -> &Vec<PafAlignment> {
         &self.alignments
     }
-
-    #[allow(dead_code)]
-    pub fn gen_query_coitree(&self) {}
-
-    #[allow(dead_code)]
-    pub fn gen_target_coitree(&self) {}
 }
 
 #[cfg(test)]

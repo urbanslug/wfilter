@@ -4,11 +4,9 @@ use std::time::Instant;
 mod cli;
 mod io;
 mod types;
-// mod wflambda;
+mod wflambda;
 mod index;
 mod paf;
-
-// use wflambda::types;
 
 fn main() {
     // Parse CLI args
@@ -28,7 +26,7 @@ fn main() {
         )
     }
 
-    let (query_index, target_index): (
+    let (_query_index, _target_index): (
         coitrees::COITree<types::AlignmentMetadata, u32>,
         coitrees::COITree<types::AlignmentMetadata, u32>,
     ) = index::index_paf_matches(&paf);

@@ -1,12 +1,14 @@
 use coitrees;
 use std::time::Instant;
 
-mod cli;
-mod io;
-mod types;
+// local
 mod wflambda;
+
+mod cli;
 mod index;
+mod io;
 mod paf;
+mod types;
 
 fn main() {
     // Parse CLI args

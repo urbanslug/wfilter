@@ -4,16 +4,33 @@ use std::cmp;
 
 pub type AwfOffset = usize;
 
+pub fn affine_lambda_wavefront_v(k: i32, offset: i32) -> i32 {
+    offset-k
+}
+
+pub fn affine_lambda_wavefront_h(k: i32, offset: i32) -> i32 {
+    offset
+}
+
+pub fn affine_lambda_wavefront_diagonal(h: i32, v: i32) -> i32 {
+    h - v
+}
+pub fn affine_lambda_wavefront_offset(h: i32, v: i32) -> i32  {
+    h
+}
+
+
+
 pub struct AffineWavefront {
     // Range
     pub null: bool,     // Is null interval?
-    pub lo: usize,      // Effective lowest diagonal (inclusive)
-    pub hi: usize,      // Effective highest diagonal (inclusive)
-    pub lo_base: usize, // Lowest diagonal before reduction (inclusive)
-    pub hi_base: usize, // Highest diagonal before reduction (inclusive)
+    pub lo: i32,      // Effective lowest diagonal (inclusive)
+    pub hi: i32,      // Effective highest diagonal (inclusive)
+    pub lo_base: i32, // Lowest diagonal before reduction (inclusive)
+    pub hi_base: i32, // Highest diagonal before reduction (inclusive)
 
     // Offsets
-    pub offsets: Vec<AwfOffset>, // Offsets
+    pub offsets: Vec<AwfOffset>
 
                                  /* TODO: make this an option type
                                  // #ifdef AFFINE_LAMBDA_WAVEFRONT_DEBUG
@@ -22,17 +39,26 @@ pub struct AffineWavefront {
                                   */
 }
 
+impl AffineWavefront {
+    pub fn new(null: bool, lo: i32, hi: i32, lo_base: i32, hi_base: i32) -> Self {
+        let offsets: Vec<AwfOffset> = Vec::new();
+        Self {null, lo, hi, lo_base, hi_base, offsets}
+    }
+}
+
 type WavefrontsStats = ();
 
-enum WavefrontReductionType {
+#[derive(PartialEq)]
+pub enum WavefrontReductionType {
     WavefrontsReductionNone,
     WavefrontsReductionDynamic,
 }
 
+#[derive(PartialEq)]
 pub struct AffineWavefrontsReduction {
-    reduction_strategy: WavefrontReductionType, // Reduction strategy
-    min_wavefront_length: i32,                  // Dynamic: Minimum wavefronts length to reduce
-    max_distance_threshold: i32,                // Dynamic: Maximum distance between offsets allowed
+    pub reduction_strategy: WavefrontReductionType, // Reduction strategy
+    pub min_wavefront_length: i32,                  // Dynamic: Minimum wavefronts length to reduce
+    pub max_distance_threshold: i32,                // Dynamic: Maximum distance between offsets allowed
 }
 
 impl AffineWavefrontsReduction {
@@ -58,9 +84,10 @@ pub struct AffineWavefronts {
     pub min_k: i32, // Maximum diagonal k (used for null-wf, display, and banding) TODO: make these option?
 
     // Wavefronts
-    pub mwavefronts: Vec<Vec<AffineWavefront>>, // M-wavefronts
-    pub iwavefronts: Vec<Vec<AffineWavefront>>, // I-wavefronts
-    pub dwavefronts: Vec<Vec<AffineWavefront>>, // D-wavefronts
+    // TODO: should they be 2D
+    pub mwavefronts: Vec<AffineWavefront>, // M-wavefronts
+    pub iwavefronts: Vec<AffineWavefront>, // I-wavefronts
+    pub dwavefronts: Vec<AffineWavefront>, // D-wavefronts
     // TODO: make this an option type?
     pub wavefront_null: Option<AffineWavefront>, // Null wavefront (used to gain orthogonality)
 
@@ -181,4 +208,19 @@ impl AffineWavefronts {
         // Return
         affine_wavefronts
     }
+}
+
+
+/*
+ * Allocate individual wavefront
+ */
+pub fn affine_wavefronts_allocate_wavefront(
+    affine_wavefronts: &mut AffineWavefronts,
+    lo_base: i32,
+    hi_base: i32) -> AffineWavefront {
+    // TODO: implement?
+    // Compute limits
+    let wavefront_length: i32 = hi_base - lo_base + 2; // (+1) for k=0
+    let wavefront = AffineWavefront::new(false, lo_base, hi_base, lo_base, hi_base);
+    return wavefront;
 }

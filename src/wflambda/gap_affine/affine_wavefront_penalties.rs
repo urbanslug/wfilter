@@ -21,7 +21,7 @@ pub enum WavefrontsPenaltiesStrategy {
  */
 pub struct AffineWavefrontsPenalties {
     base_penalties: AffinePenalties, // Input base Gap-Affine penalties
-    wavefront_penalties: AffinePenalties, // Wavefront Gap-Affine penalties
+    pub wavefront_penalties: AffinePenalties, // Wavefront Gap-Affine penalties
     penalties_strategy: WavefrontsPenaltiesStrategy, // Penalties adaptation strategy
 }
 

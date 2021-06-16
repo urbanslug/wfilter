@@ -2,16 +2,14 @@ use super::super::edit::edit_cigar;
 use super::affine_wavefront_penalties as penalties;
 use std::cmp;
 
-pub type AwfOffset = usize;
+
 
 pub fn affine_lambda_wavefront_v(k: i32, offset: i32) -> i32 {
     offset-k
 }
-
 pub fn affine_lambda_wavefront_h(k: i32, offset: i32) -> i32 {
     offset
 }
-
 pub fn affine_lambda_wavefront_diagonal(h: i32, v: i32) -> i32 {
     h - v
 }
@@ -19,6 +17,24 @@ pub fn affine_lambda_wavefront_offset(h: i32, v: i32) -> i32  {
     h
 }
 
+
+pub const AFFINE_LAMBDA_WAVEFRONT_OFFSET_NULL: i32 = -10;
+pub type AwfOffset = usize;
+
+/*
+ * SWF Wavefront Computation Set
+ */
+pub struct AffineWavefrontSet<'a> {
+    /* In Wavefronts*/
+    pub in_mwavefront_sub: &'a AffineWavefront,
+    pub in_mwavefront_gap: &'a AffineWavefront,
+    pub in_iwavefront_ext: &'a AffineWavefront,
+    pub in_dwavefront_ext: &'a AffineWavefront,
+    /* Out Wavefronts */
+    pub out_mwavefront: &'a AffineWavefront,
+    pub out_iwavefront: &'a AffineWavefront,
+    pub out_dwavefront: &'a AffineWavefront,
+}
 
 
 pub struct AffineWavefront {
@@ -32,11 +48,12 @@ pub struct AffineWavefront {
     // Offsets
     pub offsets: Vec<AwfOffset>
 
-                                 /* TODO: make this an option type
-                                 // #ifdef AFFINE_LAMBDA_WAVEFRONT_DEBUG
-                                 // offsets_base: AwfOffset, // Offsets increment
-                                 // #endif
-                                  */
+    /*
+        TODO: make this an option type
+        #ifdef AFFINE_LAMBDA_WAVEFRONT_DEBUG
+            offsets_base: AwfOffset, // Offsets increment
+        #endif
+    */
 }
 
 impl AffineWavefront {
@@ -109,13 +126,12 @@ pub struct AffineWavefronts {
     // STATS
     pub wavefronts_stats: WavefrontsStats, // Stats
 
-                                           /*
-                                           // DEBUG
-                                           TODO: make this an option type
-                                           #ifdef AFFINE_LAMBDA_WAVEFRONT_DEBUG
-                                             affine_table_t gap_affine_table;             // DP-Table encoded by the wavefronts
-                                           #endif
-                                           */
+    /*
+    // DEBUG
+    #ifdef AFFINE_LAMBDA_WAVEFRONT_DEBUG
+      affine_table_t gap_affine_table;  // DP-Table encoded by the wavefronts
+    #endif
+    */
 }
 
 // affine_wavefronts_new

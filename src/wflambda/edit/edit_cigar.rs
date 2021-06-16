@@ -1,9 +1,9 @@
 pub struct EditCigar {
-    operations: String,
-    max_operations: i32,
-    begin_offset: i32,
-    end_offset: i32,
-    score: i32,
+    pub operations: String,
+    pub max_operations: i32,
+    pub begin_offset: i32,
+    pub end_offset: i32,
+    pub score: i32,
 }
 
 impl EditCigar {

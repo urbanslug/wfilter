@@ -1,4 +1,5 @@
 #![allow(unused_variables, dead_code)]
+
 const MATCH_SCORE: usize = 0;
 const MISMATCH: usize = 7;
 const GAP_OPENING: usize = 11;
@@ -150,7 +151,7 @@ fn edit_wavefronts_extend_wavefront<T>(
     text_length: usize,
     lambda: T,
     _distance: usize)
-where T: Fn(usize, usize) -> bool{
+where T: Fn(usize, usize) -> bool {
     //print!("\tedit_wavefronts_extend_wavefront\n");
 
     // Parameters

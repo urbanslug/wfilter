@@ -230,9 +230,21 @@ fn wf_next(
         // We have to borrow it as mutable at the end
         // unwrap should just work because we got the wavefront at that score above
         let wavefront_set = wavefronts.get_wavefront_mut(score).unwrap();
-        wavefront_set.iwavefront.offsets[k] = imax;
-        wavefront_set.dwavefront.offsets[k] = dmax;
-        wavefront_set.mwavefront.offsets[k] = mmax;
+
+        match wavefront_set.iwavefront.offsets.get_mut(k) {
+            Some(elem) => {*elem = imax},
+            _ => panic!("[wfa::wf_next] iwavefront at score {} offset {} not found", score, k),
+        }
+
+        match wavefront_set.dwavefront.offsets.get_mut(k) {
+            Some(elem) => {*elem = dmax},
+            _ => panic!("[wfa::wf_next] dwavefront at score {} offset {} not found", score, k),
+        }
+
+        match wavefront_set.mwavefront.offsets.get_mut(k) {
+            Some(elem) => {*elem = mmax},
+            _ => panic!("[wfa::wf_next] mwavefront at score {} offset {} not found", score, k),
+        }
     }
 }
 

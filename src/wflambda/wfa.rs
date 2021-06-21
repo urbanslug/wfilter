@@ -13,19 +13,22 @@ Example: a diagonal passing through 14, 12 is diagonal 2
 macro_rules! k {
     ($h: expr, $v: expr) => {{
         $h - $v
-    }}
+    }};
 }
-
 
 macro_rules! abs {
     ($x: expr) => {{
-        if $x >= 0 { $x } else { -$x }
-    }}
+        if $x >= 0 {
+            $x
+        } else {
+            -$x
+        }
+    }};
 }
 
 #[derive(Debug)]
 struct WaveFront {
-    low: usize, // lowest diagonal that this wavfront touches
+    low: usize,  // lowest diagonal that this wavfront touches
     high: usize, // top diagonal that this wavfront touches
 
     /*
@@ -48,10 +51,8 @@ impl WaveFront {
         Self {
             low: 0,
             high: 0,
-            /*
-            TODO: make this more efficient.
-            It is wasteful as not all reach here but helps the exit condition
-             */
+            // TODO: make this more efficient.
+            // It is wasteful as not all reach here but helps the exit condition
             offsets: vec![0; max_offset],
         }
     }
@@ -66,7 +67,6 @@ impl WaveFront {
         }
     }
 }
-
 
 // Wavefronts with score s (WF_s)
 #[derive(Debug)]
@@ -89,7 +89,7 @@ impl WFs {
 
 // wavefront at index 0 is the wavefront for score 0 i.e WF_0
 struct WaveFronts {
-    wavefronts: Vec<WFs>
+    wavefronts: Vec<WFs>,
 }
 
 impl WaveFronts {
@@ -97,7 +97,7 @@ impl WaveFronts {
     fn new(max_offset: usize) -> Self {
         Self {
             // create it with at least the zero score wavefront
-            wavefronts: vec![WFs::new(max_offset)]
+            wavefronts: vec![WFs::new(max_offset)],
         }
     }
 
@@ -115,7 +115,9 @@ Take m-wavefront for a score s
 the score s is determined in wf_align
  */
 fn wf_extend<T>(mwavefront: &mut WaveFront, _query: &str, _text: &str, match_lambda: T)
-where T: Fn(usize, usize) -> bool {
+where
+    T: Fn(usize, usize) -> bool,
+{
     // k is the diagonal
     // we are going from the lowest to highest diagonal
     for k in mwavefront.low..=mwavefront.high {
@@ -124,7 +126,7 @@ where T: Fn(usize, usize) -> bool {
         let mut v: usize = mwavefront.offsets[k] - k; // columns
         let mut h: usize = mwavefront.offsets[k];
 
-        while match_lambda(v,h) {
+        while match_lambda(v, h) {
             // extend the wavefront along this diagonal
             mwavefront.offsets[k] = mwavefront.offsets[k] + 1; // why this?
             v += 1;
@@ -156,7 +158,7 @@ fn wf_next(
                 Some (w) => w,
                 None => panic!("[wfa::wf_next] could not find wavefront for score {} despite pushing enough wavefronts", score),
             }
-        },
+        }
     };
 
     let mwavefront = &wavefront_set.mwavefront;
@@ -164,32 +166,65 @@ fn wf_next(
     let dwavefront = &wavefront_set.dwavefront;
 
     let high = cmp::max(
-        cmp::max(mwavefront.high - MIS_MATCH_SCORE, mwavefront.high - GAP_OPENING_SCORE  - GAP_EXTENSION_SCORE),
-        cmp::max(iwavefront.high - GAP_EXTENSION_SCORE, dwavefront.high - GAP_EXTENSION_SCORE )
+        cmp::max(
+            mwavefront.high - MIS_MATCH_SCORE,
+            mwavefront.high - GAP_OPENING_SCORE - GAP_EXTENSION_SCORE,
+        ),
+        cmp::max(
+            iwavefront.high - GAP_EXTENSION_SCORE,
+            dwavefront.high - GAP_EXTENSION_SCORE,
+        ),
     ) + 1;
 
     let low = cmp::max(
-        cmp::max(mwavefront.low - MIS_MATCH_SCORE, mwavefront.low - GAP_OPENING_SCORE  - GAP_EXTENSION_SCORE),
-        cmp::max(iwavefront.low - GAP_EXTENSION_SCORE, dwavefront.low - GAP_EXTENSION_SCORE )
+        cmp::max(
+            mwavefront.low - MIS_MATCH_SCORE,
+            mwavefront.low - GAP_OPENING_SCORE - GAP_EXTENSION_SCORE,
+        ),
+        cmp::max(
+            iwavefront.low - GAP_EXTENSION_SCORE,
+            dwavefront.low - GAP_EXTENSION_SCORE,
+        ),
     ) + 1;
 
     for k in low..=high {
         let imax = cmp::max(
-            wavefronts.get_wavefront(score - GAP_OPENING_SCORE - GAP_EXTENSION_SCORE).unwrap().mwavefront.offsets[k-1],
-            wavefronts.get_wavefront(score - GAP_EXTENSION_SCORE).unwrap().iwavefront.offsets[k-1]
+            wavefronts
+                .get_wavefront(score - GAP_OPENING_SCORE - GAP_EXTENSION_SCORE)
+                .unwrap()
+                .mwavefront
+                .offsets[k - 1],
+            wavefronts
+                .get_wavefront(score - GAP_EXTENSION_SCORE)
+                .unwrap()
+                .iwavefront
+                .offsets[k - 1],
         ) + 1;
 
         let dmax = cmp::max(
-            wavefronts.get_wavefront(score - GAP_OPENING_SCORE - GAP_EXTENSION_SCORE).unwrap().mwavefront.offsets[k+1],
-            wavefronts.get_wavefront(score - GAP_EXTENSION_SCORE).unwrap().dwavefront.offsets[k+1]
+            wavefronts
+                .get_wavefront(score - GAP_OPENING_SCORE - GAP_EXTENSION_SCORE)
+                .unwrap()
+                .mwavefront
+                .offsets[k + 1],
+            wavefronts
+                .get_wavefront(score - GAP_EXTENSION_SCORE)
+                .unwrap()
+                .dwavefront
+                .offsets[k + 1],
         );
 
         let mmax = cmp::max(
-            wavefronts.get_wavefront(score - MIS_MATCH_SCORE).unwrap().mwavefront.offsets[k]+1,
+            wavefronts
+                .get_wavefront(score - MIS_MATCH_SCORE)
+                .unwrap()
+                .mwavefront
+                .offsets[k]
+                + 1,
             cmp::max(
                 wavefronts.get_wavefront(score).unwrap().iwavefront.offsets[k],
                 wavefronts.get_wavefront(score).unwrap().dwavefront.offsets[k],
-            )
+            ),
         );
 
         // We have to borrow it as mutable at the end
@@ -201,11 +236,11 @@ fn wf_next(
     }
 }
 
-fn wf_align(query: &str, text: &str ) {
+fn wf_align(query: &str, text: &str) {
     // TODO: is this the best idea? it lets us easily access the wavefronts
     // assume m >= n
     let query_len = query.len(); // n
-    let text_len = text.len();   // m
+    let text_len = text.len(); // m
 
     // starting diagonal
     // this is the diagonal that reaches point n,m
@@ -231,23 +266,39 @@ fn wf_align(query: &str, text: &str ) {
     let mut wavefronts = WaveFronts::new(a_offset);
     // println!("{:?}", wavefronts.wavefronts); TODO: remove
     // initial wavefront set
-    let initial_wavefront_set: &mut WFs =  match wavefronts.get_wavefront_mut(start_score) {
+    let initial_wavefront_set: &mut WFs = match wavefronts.get_wavefront_mut(start_score) {
         Some(wf) => wf,
-        None => panic!("Initial wavefront not set")
+        None => panic!("Initial wavefront not set"),
     };
-    initial_wavefront_set.mwavefront.offsets.insert(start_offset, 0);
+    initial_wavefront_set
+        .mwavefront
+        .offsets
+        .insert(start_offset, 0);
 
     let mut score = start_score;
 
-    let match_lambda = |v: usize, h: usize| { query.chars().nth(v).unwrap() == text.chars().nth(h).unwrap() };
+    let match_lambda =
+        |v: usize, h: usize| query.chars().nth(v).unwrap() == text.chars().nth(h).unwrap();
 
     loop {
-
-        wf_extend(&mut wavefronts.get_wavefront_mut(score).unwrap().mwavefront, query, text, match_lambda);
+        wf_extend(
+            &mut wavefronts.get_wavefront_mut(score).unwrap().mwavefront,
+            query,
+            text,
+            match_lambda,
+        );
 
         // if wavefront of the current score is at offset
         // if we have reaches a_k
-        if wavefronts.get_wavefront(score).unwrap().mwavefront.at_offset(a_k) >= a_k { break }
+        if wavefronts
+            .get_wavefront(score)
+            .unwrap()
+            .mwavefront
+            .at_offset(a_k)
+            >= a_k
+        {
+            break;
+        }
 
         // compute the wavefront for the next score
         score += 1;
@@ -261,13 +312,13 @@ mod tests {
 
     #[test]
     fn test_align_equal_length() {
-        let text  = "GATACA";
+        let text = "GATACA";
         let query = "GAGATA";
         assert_eq!(wf_align(query, text), ());
     }
 
     #[test]
     fn test_marcos() {
-        assert_eq!(k!(14,12), 2);
+        assert_eq!(k!(14, 12), 2);
     }
 }

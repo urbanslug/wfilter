@@ -1,2 +1,2 @@
-pub mod wflambda;
 pub mod wfa;
+pub mod wflambda;

@@ -1,6 +1,6 @@
 use std::cmp;
 
-const MATCH_SCORE: usize = 0;
+// const MATCH_SCORE: usize = 0;
 const MIS_MATCH_SCORE: usize = 4;
 const GAP_OPENING_SCORE: usize = 6;
 const GAP_EXTENSION_SCORE: usize = 2;
@@ -69,7 +69,6 @@ impl WaveFront {
 
 
 // Wavefronts with score s (WF_s)
-#[allow(dead_code)]
 #[derive(Debug)]
 struct WFs {
     iwavefront: WaveFront,
@@ -102,14 +101,12 @@ impl WaveFronts {
         }
     }
 
-    // TODO: rename to get_wavefront_with_score
-    // get a reference to the wavefront with the given score
-    fn get_score<'a>(&'a mut self, s: usize) -> Option<&'a mut WFs> {
-        if s < self.wavefronts.len() {
-            self.wavefronts.get_mut(s)
-        } else {
-            None
-        }
+    fn get_wavefront_mut<'a>(&'a mut self, score: usize) -> Option<&'a mut WFs> {
+        self.wavefronts.get_mut(score)
+    }
+
+    fn get_wavefront(&self, score: usize) -> Option<&WFs> {
+        self.wavefronts.get(score)
     }
 }
 
@@ -139,9 +136,14 @@ where T: Fn(usize, usize) -> bool {
 // Compute the next wavefront for the score
 // A wavfront will touch a set of diagonals
 // from hi to low and be extended along them
-fn wf_next(wavefronts: &mut WaveFronts, _query: &str, _text: &str, score: usize, max_offset: usize) {
-    
-    let wavefront_set: &mut WFs = match wavefronts.get_score(score) {
+fn wf_next(
+    wavefronts: &mut WaveFronts,
+    _query: &str,
+    _text: &str,
+    score: usize,
+    max_offset: usize,
+) {
+    let wavefront_set: &WFs = match wavefronts.get_wavefront(score) {
         Some(wf) => wf,
         // create the wavefront
         None => {
@@ -150,16 +152,16 @@ fn wf_next(wavefronts: &mut WaveFronts, _query: &str, _text: &str, score: usize,
             while wavefronts.wavefronts.len() <= score {
                 wavefronts.wavefronts.push(WFs::new(max_offset));
             }
-            match wavefronts.get_score(score) {
+            match wavefronts.get_wavefront(score) {
                 Some (w) => w,
-                None => panic!("[wfa::wf_next] could not find wavefront for score {} despite pushing enough wavefronts"),
+                None => panic!("[wfa::wf_next] could not find wavefront for score {} despite pushing enough wavefronts", score),
             }
         },
     };
 
-    let mwavefront = &mut wavefront_set.mwavefront;
-    let iwavefront = &mut wavefront_set.iwavefront;
-    let dwavefront = &mut wavefront_set.dwavefront;
+    let mwavefront = &wavefront_set.mwavefront;
+    let iwavefront = &wavefront_set.iwavefront;
+    let dwavefront = &wavefront_set.dwavefront;
 
     let high = cmp::max(
         cmp::max(mwavefront.high - MIS_MATCH_SCORE, mwavefront.high - GAP_OPENING_SCORE  - GAP_EXTENSION_SCORE),
@@ -172,27 +174,33 @@ fn wf_next(wavefronts: &mut WaveFronts, _query: &str, _text: &str, score: usize,
     ) + 1;
 
     for k in low..=high {
-        iwavefront.offsets[k] = cmp::max(
-            wavefronts.get_score(score - GAP_OPENING_SCORE - GAP_EXTENSION_SCORE).unwrap().mwavefront.offsets[k-1],
-            wavefronts.get_score(score - GAP_EXTENSION_SCORE).unwrap().iwavefront.offsets[k-1]
+        let imax = cmp::max(
+            wavefronts.get_wavefront(score - GAP_OPENING_SCORE - GAP_EXTENSION_SCORE).unwrap().mwavefront.offsets[k-1],
+            wavefronts.get_wavefront(score - GAP_EXTENSION_SCORE).unwrap().iwavefront.offsets[k-1]
         ) + 1;
 
-        dwavefront.offsets[k] = cmp::max(
-            wavefronts.get_score(score - GAP_OPENING_SCORE - GAP_EXTENSION_SCORE).unwrap().mwavefront.offsets[k+1],
-            wavefronts.get_score(score - GAP_EXTENSION_SCORE).unwrap().dwavefront.offsets[k+1]
+        let dmax = cmp::max(
+            wavefronts.get_wavefront(score - GAP_OPENING_SCORE - GAP_EXTENSION_SCORE).unwrap().mwavefront.offsets[k+1],
+            wavefronts.get_wavefront(score - GAP_EXTENSION_SCORE).unwrap().dwavefront.offsets[k+1]
         );
 
-        mwavefront.offsets[k] = cmp::max(
-            wavefronts.get_score(score - MIS_MATCH_SCORE).unwrap().mwavefront.offsets[k]+1,
+        let mmax = cmp::max(
+            wavefronts.get_wavefront(score - MIS_MATCH_SCORE).unwrap().mwavefront.offsets[k]+1,
             cmp::max(
-                wavefronts.get_score(score).unwrap().iwavefront.offsets[k],
-                wavefronts.get_score(score).unwrap().dwavefront.offsets[k],
+                wavefronts.get_wavefront(score).unwrap().iwavefront.offsets[k],
+                wavefronts.get_wavefront(score).unwrap().dwavefront.offsets[k],
             )
         );
+
+        // We have to borrow it as mutable at the end
+        // unwrap should just work because we got the wavefront at that score above
+        let wavefront_set = wavefronts.get_wavefront_mut(score).unwrap();
+        wavefront_set.iwavefront.offsets[k] = imax;
+        wavefront_set.dwavefront.offsets[k] = dmax;
+        wavefront_set.mwavefront.offsets[k] = mmax;
     }
 }
 
-#[allow(unused_variables)]
 fn wf_align(query: &str, text: &str ) {
     // TODO: is this the best idea? it lets us easily access the wavefronts
     // assume m >= n
@@ -223,7 +231,7 @@ fn wf_align(query: &str, text: &str ) {
     let mut wavefronts = WaveFronts::new(a_offset);
     // println!("{:?}", wavefronts.wavefronts); TODO: remove
     // initial wavefront set
-    let initial_wavefront_set: &mut WFs =  match wavefronts.get_score(start_score) {
+    let initial_wavefront_set: &mut WFs =  match wavefronts.get_wavefront_mut(start_score) {
         Some(wf) => wf,
         None => panic!("Initial wavefront not set")
     };
@@ -235,11 +243,11 @@ fn wf_align(query: &str, text: &str ) {
 
     loop {
 
-        wf_extend(&mut wavefronts.get_score(score).unwrap().mwavefront, query, text, match_lambda);
+        wf_extend(&mut wavefronts.get_wavefront_mut(score).unwrap().mwavefront, query, text, match_lambda);
 
         // if wavefront of the current score is at offset
         // if we have reaches a_k
-        if wavefronts.get_score(score).unwrap().mwavefront.at_offset(a_k) >= a_k { break }
+        if wavefronts.get_wavefront(score).unwrap().mwavefront.at_offset(a_k) >= a_k { break }
 
         // compute the wavefront for the next score
         score += 1;
@@ -251,7 +259,6 @@ fn wf_align(query: &str, text: &str ) {
 mod tests {
     use super::*;
 
-    
     #[test]
     fn test_align_equal_length() {
         let text  = "GATACA";

@@ -41,14 +41,17 @@ macro_rules! ewavefront_h {
     }}
 }
 
+
+
 type EwfOffsetT = i16;
 
 struct EditWavefrontT {
-    lo: isize,
     // Effective lowest diagonal (inclusive)
-    hi: isize,
+    lo: isize,
     // Effective highest diagonal (inclusive)
-    offsets: Vec<EwfOffsetT>, // Offsets
+    hi: isize,
+    // Offsets
+    offsets: Vec<EwfOffsetT>,
 }
 
 struct EditWavefrontsT {
@@ -66,11 +69,14 @@ struct EditWavefrontsT {
     edit_cigar_length: usize,
 }
 
-fn edit_wavefronts_backtrace(
+fn edit_wavefronts_backtrace<U>(
     wavefronts: &mut EditWavefrontsT,
-    _pattern: &[u8], _text: &[u8],
-    target_k: isize, target_distance: usize,
-) {
+    traceback_lambda: &U,
+    _pattern: &[u8],
+    _text: &[u8],
+    target_k: isize,
+    target_distance: usize,
+) where U: Fn(isize, isize) -> bool {
     //print!("edit_wavefronts_backtrace\n");
 
     // Parameters
@@ -104,6 +110,15 @@ fn edit_wavefronts_backtrace(
         }*/
 
         let i_k = k - wavefront.lo;
+
+        let v: isize = wavefront.offsets[i_k as usize] as isize;
+        let h: isize = offset as isize;
+
+        if v < 0 {
+            traceback_lambda(h, v);
+        } else {
+            traceback_lambda(h, -1);
+        }
 
         // Traceback operation
         if -1 <= i_k && k + 1 <= wavefront.hi && offset == wavefront.offsets[(i_k + 1) as usize] {
@@ -248,14 +263,15 @@ fn edit_wavefronts_compute_wavefront(
     print!("\t\thi + 1, wavefront[{}]->offsets[{}]: {}\n", distance - 1, hi + 1, wf_prec.offsets[(hi + 1 + (-wf_prec.lo)) as usize]);*/
 }
 
-fn edit_wavefronts_align<T>(
+fn edit_wavefronts_align<T, U>(
     wavefronts: &mut EditWavefrontsT,
     match_lambda: &T,
+    traceback_lambda: &U,
     pattern: &[u8],
     pattern_length: usize,
     text: &[u8],
     text_length: usize)
-where T: Fn(usize, usize) -> bool {
+where T: Fn(usize, usize) -> bool, U: Fn(isize, isize) -> bool {
     // Parameters
     let target_k: isize = ewavefront_diagonal!(text_length as isize, pattern_length as isize);  // h - v
     let target_offset: EwfOffsetT = ewavefront_offset!(text_length, pattern) as EwfOffsetT;     // h
@@ -310,7 +326,12 @@ where T: Fn(usize, usize) -> bool {
     }
 
     // Backtrace wavefronts
-    edit_wavefronts_backtrace(wavefronts, pattern, text, target_k, target_distance);
+    edit_wavefronts_backtrace(wavefronts,
+                              traceback_lambda,
+                              pattern,
+                              text,
+                              target_k,
+                              target_distance);
 }
 
 fn edit_wavefronts_clean(
@@ -325,10 +346,12 @@ fn edit_wavefronts_clean(
 
 fn edit_wavefronts_allocate_wavefront(
     wavefront: &mut EditWavefrontT,
-    lo_base: isize, hi_base: isize,
+    lo_base: isize,
+    hi_base: isize,
 ) {
     // Compute limits
-    let wavefront_length: usize = (hi_base - lo_base + 1) as usize;//if hi_base == lo_base && hi_base == 0 { 1 } else { 2 }) as usize; // (+1) for k=0
+    // if hi_base == lo_base && hi_base == 0 { 1 } else { 2 }) as usize; // (+1) for k=0
+    let wavefront_length: usize = (hi_base - lo_base + 1) as usize;
 
     // Configure offsets
     wavefront.lo = lo_base;
@@ -337,21 +360,25 @@ fn edit_wavefronts_allocate_wavefront(
     // Allocate offsets
     wavefront.offsets = vec![0; wavefront_length];
 
-    /*print!("\tedit_wavefronts_allocate_wavefront\n");
+    /*
+    print!("\tedit_wavefronts_allocate_wavefront\n");
     print!("\t\twavefront_length: {}\n", wavefront_length);
-    print!("\t\twavefronts[{}]->[lo_base, hi_base] == [{}, {}]\n", distance, lo_base, hi_base);*/
+    print!("\t\twavefronts[{}]->[lo_base, hi_base] == [{}, {}]\n", distance, lo_base, hi_base);
+     */
 }
 
-fn wflambda<T>(
+fn wflambda<T, U>(
     wavefronts: &mut EditWavefrontsT,
     match_lambda: &T,
+    traceback_lambda: &U,
     pattern: &[u8],
     pattern_length: usize,
     text: &[u8],
     text_length: usize)
-where T: Fn(usize, usize) -> bool{
+where T: Fn(usize, usize) -> bool, U: Fn(isize, isize) -> bool {
     edit_wavefronts_align(wavefronts,
                           match_lambda,
+                          traceback_lambda,
                           pattern,
                           pattern_length,
                           text,
@@ -418,13 +445,19 @@ mod tests {
         }
 
         let match_lambda = |v: usize, h: usize| -> bool { pattern[v] == text[h]  };
-        // let traceback_lambda = Box::new(|v: usize, h: usize| -> bool { pattern[v] != text[h]  });
-        
+        let traceback_lambda = |v: isize, h: isize| -> bool {
+            if v >= 0 && h >= 0 && (v as usize) < pattern_length && (h as usize) < text_length {
+                true
+            } else {
+                false
+            }
+        };
 
         for _ in 0..reps {
             edit_wavefronts_clean(&mut wavefronts);
             wflambda(&mut wavefronts,
                      &match_lambda,
+                     &traceback_lambda,
                      pattern,
                      pattern_length,
                      text,
@@ -443,7 +476,12 @@ mod tests {
         //debug_assert!(&wavefronts.edit_cigar == &"MMMXMMMMDMMMMMMMIMMMMMMMMMXMMMMMMMMMXMMMMDMMMMMMMIMMMMMMMMMXMMMMMMMMMXMMMMDMMMMMMMIMMMMMMMMMXMMMMMMMMMXMMMMDMMMMMMMIMMMMMMMMMXMMMMMM".as_bytes());
         //println!("{}", String::from_utf8(wavefronts.edit_cigar).unwrap());
 
-        println!("{}", std::str::from_utf8(&wavefronts.edit_cigar[..]).unwrap());
+        for i in (0..wavefronts.edit_cigar_length).rev() {
+            print!("{}", wavefronts.edit_cigar[i] as char)
+        };
+        print!("\n");
+
+        //println!("{}", std::str::from_utf8(&wavefronts.edit_cigar[..]).unwrap());
         assert_eq!((), ());
     }
 }

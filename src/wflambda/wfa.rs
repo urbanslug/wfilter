@@ -7,21 +7,19 @@ const GAP_EXTENSION_SCORE: isize = 2;
 
 const VERBOSITY_LEVEL: usize = 1;
 
-// use std::cmp;
-
 /*
-A diagonal is a number around the 0/center diagnal. Could be greater or less than 0
+A diagonal is a named/numbered based on the row - column
+All diagonals are located relative to a central diagonal m - n.
+where m is the text length and n is the query length
+if less the central diagonal is less than zero, we flip its sign
+
 Diagonal number: h - v
 v = offset - diagonal
 h = offset
-k is the diagnal
- */
 
+k = h - v (k is the diagonal)
 
-/*
-k is the name of the diagonal
-We name diagonals based on the row - column
-Example: a diagonal passing through 12, 14 is diagonal -2
+Example: a diagonal passing through (v, h) (12, 14) is diagonal 2
 */
 macro_rules! k {
     ($h: expr, $v: expr) => {{
@@ -67,8 +65,6 @@ struct Alignment {
     central_diagonal: usize, // starting diagonal
 }
 
-
-
 type Offset = i16;
 #[derive(Debug)]
 struct WaveFront {
@@ -82,9 +78,9 @@ struct WaveFront {
     Below we have offsets for 7 diagonals along which we've moved 6, 4, 2 ... 0 steps
 
       0   1   2   3   4   5   6
-     ----------------------------
+     ---------------------------
     | 6 | 4 | 2 | 2 | 0 | 0 | 0 |
-     ----------------------------
+     ---------------------------
      */
     offsets: Vec<Offset>, // matches & mismatches
 }
@@ -109,8 +105,7 @@ impl WaveFront {
         } else {
             0
         }
-    }
-}
+    }}
 
 // Wavefronts with score s (WF_s)
 #[derive(Debug)]
@@ -192,8 +187,6 @@ impl WaveFronts {
         ()
     }
 }
-
-
 
 /*
 Take m-wavefront for a score s

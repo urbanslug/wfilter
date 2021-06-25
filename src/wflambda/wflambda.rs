@@ -7,41 +7,47 @@ const GAP_EXTENSION: usize = 1;
 
 macro_rules! max {
     ($x: expr, $y: expr) => {{
-        if $x > $y { $x } else { $y }
-    }}
+        if $x > $y {
+            $x
+        } else {
+            $y
+        }
+    }};
 }
 
 macro_rules! abs {
     ($x: expr) => {{
-        if $x >= 0 { $x } else { -$x }
-    }}
+        if $x >= 0 {
+            $x
+        } else {
+            -$x
+        }
+    }};
 }
 
 macro_rules! ewavefront_diagonal {
     ($h: expr, $v: expr) => {{
         $h - $v
-    }}
+    }};
 }
 
 macro_rules! ewavefront_offset {
     ($h: expr, $v: expr) => {{
         $h
-    }}
+    }};
 }
 
 macro_rules! ewavefront_v {
     ($k: expr, $offset: expr) => {{
         $offset - $k
-    }}
+    }};
 }
 
 macro_rules! ewavefront_h {
     ($k: expr, $offset: expr) => {{
         $offset
-    }}
+    }};
 }
-
-
 
 type EwfOffsetT = i16;
 
@@ -76,7 +82,9 @@ fn edit_wavefronts_backtrace<U>(
     _text: &[u8],
     target_k: isize,
     target_distance: usize,
-) where U: Fn(isize, isize) -> bool {
+) where
+    U: Fn(isize, isize) -> bool,
+{
     //print!("edit_wavefronts_backtrace\n");
 
     // Parameters
@@ -128,7 +136,10 @@ fn edit_wavefronts_backtrace<U>(
             wavefronts.edit_cigar_length += 1;
             k += 1;
             distance -= 1;
-        } else if 1 <= i_k && k - 1 <= wavefront.hi && offset == wavefront.offsets[(i_k - 1) as usize] + 1 {
+        } else if 1 <= i_k
+            && k - 1 <= wavefront.hi
+            && offset == wavefront.offsets[(i_k - 1) as usize] + 1
+        {
             // wavefront.lo <= k - 1 && k - 1 <= wavefront.hi
 
             wavefronts.edit_cigar[wavefronts.edit_cigar_length] = b'I';
@@ -165,23 +176,37 @@ fn edit_wavefronts_extend_wavefront<T>(
     pattern_length: usize,
     text_length: usize,
     lambda: T,
-    _distance: usize)
-where T: Fn(usize, usize) -> bool {
-    //print!("\tedit_wavefronts_extend_wavefront\n");
+) where
+    T: Fn(usize, usize) -> bool,
+{
+    print!("\tedit_wavefronts_extend_wavefront\n");
 
     // Parameters
     let k_min = wavefront.lo;
 
+    print!(
+        "\t\twavefront.offsets length = {}\n",
+        wavefront.offsets.len()
+    );
     // Extend diagonally each wavefront point (with take the execution times are slightly better)
-    for (i, offset) in wavefront.offsets.iter_mut().take((wavefront.hi - wavefront.lo + 1) as usize).enumerate() {
-        let mut v = ewavefront_v!(i as isize + k_min, *offset as isize) as usize; // offsets[k]-k
-        let mut h = ewavefront_h!(i as isize + k_min, *offset as isize) as usize; // offsets[k]
+    for (i, offset) in wavefront
+        .offsets
+        .iter_mut()
+        .take((wavefront.hi - wavefront.lo + 1) as usize)
+        .enumerate()
+    {
+        let k = i as isize + k_min; // the diagonal
+        let mut v = ewavefront_v!(i as isize + k_min, *offset as isize) as usize; // offsets[k]-k (offset - k)
+        let mut h = ewavefront_h!(i as isize + k_min, *offset as isize) as usize; // offsets[k]   (offset)
 
-        //print!("\t\tk: {}\n", i as isize + k_min);
+        // print!("\t\tk={}\n", i as isize + k_min);
         while v < pattern_length && h < text_length && lambda(v, h) {
-            //print!("{}\t{}\t{}\t{}\t{}\tM\t{}\t{}\n", v, h, *offset, _distance, i as isize + k_min, pattern[v] as char, text[h] as char);
-            /*print!("\t\t\twavefronts[{}]->offsets[{}]: {}\n", _distance, i as isize + k_min, offset);
-            print!("\t\t\t(v, h) == ({}, {}) ==> ({}, {})\n", v, h, pattern[v] as char, text[h] as char);*/
+            /*
+            print!("{}\t{}\t{}\t{}\t{}\tM\t{}\t{}\n", v, h, *offset, _distance, i as isize + k_min, pattern[v] as char, text[h] as char);
+
+            print!("\t\t\twavefronts[{}]->offsets[{}]: {}\n", _distance, i as isize + k_min, offset);
+            print!("\t\t\t(v, h) == ({}, {}) ==> ({}, {})\n", v, h, pattern[v] as char, text[h] as char);
+             */
 
             *offset += 1;
             v += 1;
@@ -197,7 +222,8 @@ where T: Fn(usize, usize) -> bool {
 
 fn edit_wavefronts_compute_wavefront(
     wavefronts: &mut EditWavefrontsT,
-    _pattern_length: usize, _text_length: usize,
+    _pattern_length: usize,
+    _text_length: usize,
     distance: usize,
 ) {
     //print!("\tedit_wavefronts_compute_wavefront\n");
@@ -208,13 +234,11 @@ fn edit_wavefronts_compute_wavefront(
     let wf_prec = &mut xxx[distance - 1];
     let wf_succ = &mut yyy[0];
 
-    edit_wavefronts_allocate_wavefront(
-        wf_succ, wf_prec.lo - 1, wf_prec.hi + 1,
-    );
+    edit_wavefronts_allocate_wavefront(wf_succ, wf_prec.lo - 1, wf_prec.hi + 1);
     // Allocate wavefront
     wavefronts.wavefronts_allocated += 1; // Next
-    /*print!("\t\tedit_wavefronts->wavefronts_allocated: {}\n", wavefronts.wavefronts_allocated);
-    print!("\t---------------\n");*/
+                                          /*print!("\t\tedit_wavefronts->wavefronts_allocated: {}\n", wavefronts.wavefronts_allocated);
+                                          print!("\t---------------\n");*/
 
     let hi_minus_lo = (wf_prec.hi - wf_prec.lo) as usize;
 
@@ -225,7 +249,11 @@ fn edit_wavefronts_compute_wavefront(
     wf_succ.offsets[0] = wf_prec_offset_lo;
 
     // Loop peeling (k=lo) ((wf_prec.lo + 1) <= wf_prec.hi)
-    let bottom_upper_del = if hi_minus_lo >= 1 { wf_prec.offsets[1] } else { -1 };
+    let bottom_upper_del = if hi_minus_lo >= 1 {
+        wf_prec.offsets[1]
+    } else {
+        -1
+    };
     wf_succ.offsets[1] = max!(wf_prec_offset_lo + 1, bottom_upper_del);
 
     /*print!("\t\tlo - 1, next_wavefront[{}]->next_offsets[{}]: {}\n", distance, lo - 1, wf_succ.offsets[(lo - 1 + (-wf_succ.lo)) as usize]);
@@ -251,7 +279,11 @@ fn edit_wavefronts_compute_wavefront(
     let wf_prec_offset_hi = wf_prec.offsets[hi_minus_lo];
 
     // Loop peeling (k=hi) (wf_prec.lo <= (wf_prec.hi - 1))
-    let top_lower_ins = if hi_minus_lo >= 1 { wf_prec.offsets[hi_minus_lo - 1] } else { -1 };
+    let top_lower_ins = if hi_minus_lo >= 1 {
+        wf_prec.offsets[hi_minus_lo - 1]
+    } else {
+        -1
+    };
     wf_succ.offsets[hi_minus_lo + 1] = max!(wf_prec_offset_hi, top_lower_ins) + 1;
 
     // Loop peeling (k=hi+1); there is only the Lower DP cell (there are no Mid and Upper cells)
@@ -270,27 +302,47 @@ fn edit_wavefronts_align<T, U>(
     pattern: &[u8],
     pattern_length: usize,
     text: &[u8],
-    text_length: usize)
-where T: Fn(usize, usize) -> bool, U: Fn(isize, isize) -> bool {
+    text_length: usize,
+) where
+    T: Fn(usize, usize) -> bool,
+    U: Fn(isize, isize) -> bool,
+{
     // Parameters
-    let target_k: isize = ewavefront_diagonal!(text_length as isize, pattern_length as isize);  // h - v
-    let target_offset: EwfOffsetT = ewavefront_offset!(text_length, pattern) as EwfOffsetT;     // h
+
+    // This is the diagonal we start with
+    let target_k: isize = ewavefront_diagonal!(text_length as isize, pattern_length as isize); // h - v
+                                                                                               // offset on diagonal k
+    let target_offset: EwfOffsetT = ewavefront_offset!(text_length, pattern) as EwfOffsetT; // h
 
     let target_k_abs: usize = abs!(target_k) as usize;
 
-    /*print!("edit_wavefronts_align\n");
-    print!("\ttarget_k: {} == text_length ({}) - pattern_length ({})\n", target_k, text_length, pattern_length);
-    print!("\ttarget_offset: {} == text_length ({})\n\n", target_offset, text_length);*/
+    print!("edit_wavefronts_align\n");
+    print!(
+        "\ttarget_k: {} == text_length ({}) - pattern_length ({})\n",
+        target_k, text_length, pattern_length
+    );
+    print!(
+        "\ttarget_offset: {} == text_length ({})\n\n",
+        target_offset, text_length
+    );
 
     // Init wavefronts
+    // assume target_k will always be 0
     edit_wavefronts_allocate_wavefront(&mut wavefronts.wavefronts[0], 0, 0);
     wavefronts.wavefronts_allocated += 1; // Next
 
-    //print!("\t\tedit_wavefronts->wavefronts_allocated: {}\n", wavefronts.wavefronts_allocated);
+    print!(
+        "\t\tedit_wavefronts->wavefronts_allocated: {}\n",
+        wavefronts.wavefronts_allocated
+    );
+    print!("\n");
 
+    // TODO: what does this mean?
+    // max diagonals?
     let mut target_distance: usize = wavefronts.max_distance;
 
     // Compute wavefronts for increasing distance
+    // distance is how far the wavefront has traveled
     for distance in 0..wavefronts.max_distance {
         // Extend diagonally each wavefront point
         edit_wavefronts_extend_wavefront(
@@ -298,48 +350,67 @@ where T: Fn(usize, usize) -> bool, U: Fn(isize, isize) -> bool {
             pattern_length,
             text_length,
             match_lambda,
-            distance
         );
 
         // Exit condition (the minimum distance is the absolute difference of the sequences' lengths aligned)
-        if distance >= target_k_abs &&
-            wavefronts.wavefronts[distance].offsets[(target_k - wavefronts.wavefronts[distance].lo) as usize] == target_offset {
-            /*print!("Exit condition\n");
-            print!("\tdistance ({}) >= target_k_abs ({})\n", distance, target_k_abs);
-            print!("\twavefronts[{}]->offsets[{}] ({}) == target_offset ({})\n",
-                   distance, target_k_abs,
-                   wavefronts.wavefronts[distance].offsets[(target_k - wavefronts.wavefronts[distance].lo) as usize],
-                   target_offset
-            );*/
+        /*
+        print!("\t\ttarget_k={}, target_offset={}, distance={}, wavefronts.wavefronts[{2}].lo={}, \
+                wavefronts.wavefronts[distance].offsets[(target_k - wavefronts.wavefronts[distance].lo) as usize]={}\n",
+               target_k, target_offset, distance, wavefronts.wavefronts[distance].lo,
+               wavefronts.wavefronts[distance].offsets[(target_k - wavefronts.wavefronts[distance].lo) as usize]
+        );
+         */
+
+        // has the middle diagonal reached the target offset or cell (n,m)?
+        if distance >= target_k_abs
+            && wavefronts.wavefronts[distance].offsets
+                [(target_k - wavefronts.wavefronts[distance].lo) as usize]
+                == target_offset
+        {
+            print!("Exit condition\n");
+            print!(
+                "\tdistance ({}) >= target_k_abs ({})\n",
+                distance, target_k_abs
+            );
+            print!(
+                "\twavefronts[{}]->offsets[{}] ({}) == target_offset ({})\n",
+                distance,
+                target_k_abs,
+                wavefronts.wavefronts[distance].offsets
+                    [(target_k - wavefronts.wavefronts[distance].lo) as usize],
+                target_offset
+            );
 
             target_distance = distance;
             break;
         }
 
         // Compute next wavefront starting point
-        edit_wavefronts_compute_wavefront(
-            wavefronts,
-            pattern_length,
-            text_length,
-            distance + 1,
-        );
+        edit_wavefronts_compute_wavefront(wavefronts, pattern_length, text_length, distance + 1);
     }
 
     // Backtrace wavefronts
-    edit_wavefronts_backtrace(wavefronts,
-                              traceback_lambda,
-                              pattern,
-                              text,
-                              target_k,
-                              target_distance);
+    edit_wavefronts_backtrace(
+        wavefronts,
+        traceback_lambda,
+        pattern,
+        text,
+        target_k,
+        target_distance,
+    );
 }
 
-fn edit_wavefronts_clean(
-    wavefronts: &mut EditWavefrontsT
-) {
+fn edit_wavefronts_clean(wavefronts: &mut EditWavefrontsT) {
+    /*
     for i in 0..wavefronts.wavefronts_allocated {
         wavefronts.wavefronts[i].offsets.clear();
     }
+    */
+
+    wavefronts
+        .wavefronts
+        .iter_mut()
+        .for_each(|wf: &mut EditWavefrontT| wf.offsets.clear());
 
     wavefronts.wavefronts_allocated = 0;
 }
@@ -374,16 +445,20 @@ fn wflambda<T, U>(
     pattern: &[u8],
     pattern_length: usize,
     text: &[u8],
-    text_length: usize)
-where T: Fn(usize, usize) -> bool, U: Fn(isize, isize) -> bool {
-    edit_wavefronts_align(wavefronts,
-                          match_lambda,
-                          traceback_lambda,
-                          pattern,
-                          pattern_length,
-                          text,
-                          text_length);
-
+    text_length: usize,
+) where
+    T: Fn(usize, usize) -> bool,
+    U: Fn(isize, isize) -> bool,
+{
+    edit_wavefronts_align(
+        wavefronts,
+        match_lambda,
+        traceback_lambda,
+        pattern,
+        pattern_length,
+        text,
+        text_length,
+    );
 }
 
 #[cfg(test)]
@@ -392,34 +467,38 @@ mod tests {
 
     #[test]
     fn test_wfilter() {
-
         // Buffers
+        // TODO? Why the padding?
+        // 128 byes padding
         let pattern_mem = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\
                            TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAG\
                            TTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT\
-                           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".as_bytes();
+                           XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            .as_bytes();
         let text_mem = "\
         YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY\
         TCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGA\
         GAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
-        YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY".as_bytes();
+        YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
+            .as_bytes();
 
         // Pattern & Text (seq + 64 Xs/Ys)
         let pattern = &pattern_mem[64..];
         let text = &text_mem[64..];
         /*
         println!("pattern+XXX...: {}", pattern);
-        println!("   text+YYY...: {}", text);
+        println!("    text+YYY...: {}", text);
          */
 
         // isize to avoid overflow operation in a - b when a < b and a usize and b usize
+        // TODO: why the - 2 * 64?
         let pattern_length: usize = pattern_mem.len() - 2 * 64;
         let text_length: usize = text_mem.len() - 2 * 64;
-        let reps: usize = 100;
+        let reps: usize = 1;
 
         /*
         println!("pattern_length: {}", pattern_length);
-        println!("   text_length: {}", text_length);
+        println!("    text_length: {}", text_length);
          */
 
         // Init Wavefronts
@@ -439,12 +518,14 @@ mod tests {
 
         //edit_wavefronts_init()
         for _ in 0..wavefronts.max_distance {
-            wavefronts.wavefronts.push(
-                EditWavefrontT { lo: 0, hi: 0, offsets: Vec::new() }
-            );
+            wavefronts.wavefronts.push(EditWavefrontT {
+                lo: 0,
+                hi: 0,
+                offsets: Vec::new(),
+            });
         }
 
-        let match_lambda = |v: usize, h: usize| -> bool { pattern[v] == text[h]  };
+        let match_lambda = |v: usize, h: usize| -> bool { pattern[v] == text[h] };
         let traceback_lambda = |v: isize, h: isize| -> bool {
             if v >= 0 && h >= 0 && (v as usize) < pattern_length && (h as usize) < text_length {
                 true
@@ -453,17 +534,19 @@ mod tests {
             }
         };
 
-        for _ in 0..reps {
+        println!("");
+        (0..reps).for_each(|_rep| {
             edit_wavefronts_clean(&mut wavefronts);
-            wflambda(&mut wavefronts,
-                     &match_lambda,
-                     &traceback_lambda,
-                     pattern,
-                     pattern_length,
-                     text,
-                     text_length)
-            // edit_wavefronts_align(&mut wavefronts, pattern, pattern_length, text, text_length);
-        }
+            wflambda(
+                &mut wavefronts,
+                &match_lambda,
+                &traceback_lambda,
+                pattern,
+                pattern_length,
+                text,
+                text_length,
+            )
+        });
 
         // Two ways to display the CIGAR string
         // 1)
@@ -476,12 +559,15 @@ mod tests {
         //debug_assert!(&wavefronts.edit_cigar == &"MMMXMMMMDMMMMMMMIMMMMMMMMMXMMMMMMMMMXMMMMDMMMMMMMIMMMMMMMMMXMMMMMMMMMXMMMMDMMMMMMMIMMMMMMMMMXMMMMMMMMMXMMMMDMMMMMMMIMMMMMMMMMXMMMMMM".as_bytes());
         //println!("{}", String::from_utf8(wavefronts.edit_cigar).unwrap());
 
-        for i in (0..wavefronts.edit_cigar_length).rev() {
-            print!("{}", wavefronts.edit_cigar[i] as char)
-        };
-        print!("\n");
+        print!("\n\n");
+        print!("Printing CIGAR\n");
+        wavefronts
+            .edit_cigar
+            .iter()
+            .rev()
+            .for_each(|c: &u8| print!("{}", *c as char));
+        print!("\n\n");
 
-        //println!("{}", std::str::from_utf8(&wavefronts.edit_cigar[..]).unwrap());
         assert_eq!((), ());
     }
 }

@@ -1,4 +1,14 @@
 #![allow(dead_code, unused_macros)]
+
+const MATCH_SCORE: isize = 0;
+const MIS_MATCH_SCORE: isize = 4;
+const GAP_OPENING_SCORE: isize = 6;
+const GAP_EXTENSION_SCORE: isize = 2;
+
+const VERBOSITY_LEVEL: usize = 1;
+
+// use std::cmp;
+
 /*
 A diagonal is a number around the 0/center diagnal. Could be greater or less than 0
 Diagonal number: h - v
@@ -6,14 +16,6 @@ v = offset - diagonal
 h = offset
 k is the diagnal
  */
-
-use std::cmp;
-
-
-const MATCH_SCORE: isize = 0;
-const MIS_MATCH_SCORE: isize = 4;
-const GAP_OPENING_SCORE: isize = 6;
-const GAP_EXTENSION_SCORE: isize = 2;
 
 
 /*
@@ -62,7 +64,7 @@ struct Alignment {
     q_len: usize,
     alignment_score: i16,
     num_wavefronts: usize,
-    a_k: usize, // starting diagonal
+    central_diagonal: usize, // starting diagonal
 }
 
 
@@ -133,39 +135,47 @@ impl WFs {
 struct WaveFronts {
     wavefronts: Vec<WFs>,
     diagonals: usize,
-    max_offset: usize,
-    lowest_diagonal: isize,
+
+    max_offset: usize, // the furthest that the longest diagonal can go
+
+    highest_diagonal: isize, // diagonal at the top right corner of the matrix
+    lowest_diagonal: isize,  // diagonal at the bottom left corner of the matrix
 }
 
 impl WaveFronts {
     // create a new set of wavefronts
-    fn new(_max_offset: usize, text_len: usize, query_len: usize) -> Self {
+    fn new(text_len: usize, query_len: usize) -> Self {
 
-        let m = (text_len+query_len)*4;
-        let mut wfs: Vec<WFs> = Vec::with_capacity(query_len+text_len);
+
+        // The furthest from the origin that we expect the wavefront that travels the furthest to go.
+        // This will be along the longest diagonal, the diagonal at the origin.
+        // Should we add two because we start along 1 on the row and col of the matrix?
+        let max_offset = query_len+text_len+2;
+
+
+        let expected_wavefront_count = query_len+text_len;
+        let mut wfs: Vec<WFs> = Vec::with_capacity(expected_wavefront_count);
+
         (0..=text_len+query_len).for_each(|_| {
-            wfs.push(WFs::new(m))
+            wfs.push(WFs::new(max_offset))
         });
 
         Self {
             // create it with at least the zero score wavefront
-            wavefronts:  wfs,
+            wavefronts:  wfs, // initialize with the expected number of wavefronts
             diagonals: text_len+query_len,
-            max_offset: m, // just trying to set a large number
-            lowest_diagonal: -(query_len as isize * 2),
+            max_offset,
+            lowest_diagonal: -(query_len as isize),
+            highest_diagonal: text_len as isize,
         }
     }
 
-    fn diagnoal_index(&self, diagonal: isize) -> usize {
+    fn diagnoal_index(&self, diagonal: isize) -> Option<usize> {
         if diagonal >= self.lowest_diagonal {
             let index = diagonal + abs!(self.lowest_diagonal);
-            /*
-            println!("offset of diagonal {}, with lowest diagonal {}, is {}",
-                     diagonal, self.lowest_diagonal, index);
-             */
-            index as usize
+            Some(index as usize)
         } else {
-            panic!("Diagonal out of range")
+            None
         }
     }
 
@@ -227,17 +237,21 @@ fn wf_next(
     _query: &str,
     _text: &str,
     score: usize,
-    _max_offset: usize,
 ) {
-    eprintln!("[wfa::wf_next]");
+    if VERBOSITY_LEVEL > 2 {
+        eprintln!("[wfa::wf_next]");
+    }
+
     if score <= 0 {
         panic!("[wfa::wf_next] score={}, is too low.", score);
     }
 
-    eprint!("\tCreating wavefront for score {}.\n", score);
-    eprint!("\t\tPrevious mlo {}, mhi {}",
-            wavefronts.get_wavefront(score-1).unwrap().mwavefront.low,
-            wavefronts.get_wavefront(score-1).unwrap().mwavefront.high);
+    if VERBOSITY_LEVEL > 2 {
+        eprint!("\tCreating wavefront for score {}.\n", score);
+        eprint!("\t\tPrevious mlo {}, mhi {}",
+                wavefronts.get_wavefront(score-1).unwrap().mwavefront.low,
+                wavefronts.get_wavefront(score-1).unwrap().mwavefront.high);
+    }
 
     // If a wavefront for that score doesn't exit, create it.
     match wavefronts.get_wavefront_mut(score) {
@@ -285,19 +299,33 @@ fn wf_next(
     wavefronts.wavefronts[score].mwavefront.low = lo;
     wavefronts.wavefronts[score].mwavefront.high = hi;
 
-    eprint!("\t\tCurrent lo {}, hi {}\n", lo, hi);
-    eprint!("\t\tCurrent wavefronts.max_offset {},  dlen {}, mlen {}, ilen {}\n",
-            wavefronts.max_offset,
-            wavefronts.get_wavefront(score).unwrap().mwavefront.offsets.len(),
-            wavefronts.get_wavefront(score).unwrap().dwavefront.offsets.len(),
-            wavefronts.get_wavefront(score).unwrap().iwavefront.offsets.len()
-    );
+    if VERBOSITY_LEVEL > 2 {
+        eprint!("\t\tCurrent lo {}, hi {}\n", lo, hi);
+        eprint!("\t\tCurrent wavefronts.max_offset {},  dlen {}, mlen {}, ilen {}\n",
+                wavefronts.max_offset,
+                wavefronts.get_wavefront(score).unwrap().mwavefront.offsets.len(),
+                wavefronts.get_wavefront(score).unwrap().dwavefront.offsets.len(),
+                wavefronts.get_wavefront(score).unwrap().iwavefront.offsets.len()
+        );
+    }
 
-    // k is a diagnal
-    (lo..=hi).for_each(|diagonal: isize| {
-        let k: usize = wavefronts.diagnoal_index(diagonal);
 
-        eprint!("\t\tk={}, diagonal={}\n", k , diagonal);
+    for diagonal in lo..=hi {
+
+        let k: usize = match wavefronts.diagnoal_index(diagonal) {
+            Some(k) => { k },
+            None => {
+                if VERBOSITY_LEVEL > 2 {
+                    eprint!("\t\tdiagonal={} is out of bounds\n", diagonal);
+                }
+
+                break
+            }
+        };
+
+        if VERBOSITY_LEVEL > 3 {
+            eprint!("\t\tk={}, diagonal={}\n", k , diagonal);
+        }
 
         let imax: i16 = vec![
             if iscore - io - ie < 0 || k == 0 { 0 } else { wavefronts.get_wavefront(s-o-e).unwrap().mwavefront.offsets[k-1] },
@@ -318,14 +346,14 @@ fn wf_next(
         wavefronts.wavefronts[score].iwavefront.offsets[k] = imax;
         wavefronts.wavefronts[score].dwavefront.offsets[k] = dmax;
         wavefronts.wavefronts[score].mwavefront.offsets[k] = mmax;
-    });
+    };
 }
 
 fn wf_align(query: &str, text: &str) -> Alignment {
     // TODO: is this the best idea? it lets us easily access the wavefronts
     // assume m >= n
     let query_len = query.len(); // n
-    let text_len = text.len(); // m
+    let text_len = text.len();   // m
 
     // starting diagonal
     // this is the diagonal that reaches point n,m
@@ -335,8 +363,6 @@ fn wf_align(query: &str, text: &str) -> Alignment {
     // it is also the furthest point (offset) from the starting diagonal (a_k) in the DP matrix
     // this offset reaches point n,m
     let a_offset = text_len;
-
-    let offset_count  = query_len+text_len+2;
 
     // start conditions
     // not actually a set
@@ -350,8 +376,8 @@ fn wf_align(query: &str, text: &str) -> Alignment {
 
     // initialize wavefronts
     // pass max offsets to set aside capacity for all possible offsets
-    let mut wavefronts = WaveFronts::new(offset_count, text_len, query_len);
-    // println!("{:?}", wavefronts.wavefronts); TODO: remove
+    let mut wavefronts = WaveFronts::new(text_len, query_len);
+
     // initial wavefront set
     let initial_wavefront_set: &mut WFs = match wavefronts.get_wavefront_mut(start_score) {
         Some(wf) => wf,
@@ -362,20 +388,22 @@ fn wf_align(query: &str, text: &str) -> Alignment {
         .offsets
         .insert(start_offset, 0);
 
-    let mut score = start_score;
-
-    let match_lambda =
-        |v: usize, h: usize| {
+    let match_lambda = |v: usize, h: usize| {
             v < query_len && h < text_len && (query.chars().nth(v).unwrap() == text.chars().nth(h).unwrap())
         };
 
-    eprint!("[wfa::wfalign]\n");
-    eprint!("\tStats:\n");
-    eprint!("\t------\n");
-    eprint!("\ttext_len(m) = {}, query_len(n) = {}, diagonals={}, max_offset={}, lowest_diagonal={}\n\n",
-            query_len, text_len,
-            wavefronts.diagonals, wavefronts.max_offset, wavefronts.lowest_diagonal);
+    let end_reached = |score: usize, wavefronts: &WaveFronts| -> bool {
+        wavefronts.get_wavefront(score).unwrap().mwavefront.at_offset(a_k) >= a_offset as i16
+    };
 
+    if VERBOSITY_LEVEL > 0 {
+        eprint!("[wfa::wfalign]\n");
+        eprint!("\ttext_len(m)={}, query_len(n)={}, diagonals={}, max_offset={}, lowest_diagonal={}\n\n",
+                query_len, text_len,
+                wavefronts.diagonals, wavefronts.max_offset, wavefronts.lowest_diagonal);
+    }
+
+    let mut score = start_score;
     loop {
         let mwavefront = &mut wavefronts.get_wavefront_mut(score).unwrap().mwavefront;
         wf_extend(
@@ -383,23 +411,21 @@ fn wf_align(query: &str, text: &str) -> Alignment {
             match_lambda,
         );
 
-        if score > 50 { break; }
-
-        // if wavefront of the current score is at offset
-        // if we have reaches a_k
-        if wavefronts
-            .get_wavefront(score)
-            .unwrap()
-            .mwavefront
-            .at_offset(a_k)
-            >= a_offset as i16
-        {
+        // TODO: remove
+        // prevents an infinite loop
+        let fake_max = 100;
+        if score > fake_max {
+            eprint!("\tAbort: current score {} is beyond {}. \n", score, fake_max);
             break;
         }
 
-        // compute the wavefront for the next score
+        // if we have computed the score for the max cell (n,m)
+        if end_reached(score, &wavefronts) { break; }
+
         score += 1;
-        wf_next(&mut wavefronts, query, text, score, offset_count);
+
+        // compute the wavefront for the newly incremented score
+        wf_next(&mut wavefronts, query, text, score);
     }
 
 
@@ -408,11 +434,17 @@ fn wf_align(query: &str, text: &str) -> Alignment {
         alignment_score: wavefronts.get_wavefront(score).unwrap().mwavefront.at_offset(a_k),
         q_len: query_len,
         t_len: text_len,
-        a_k: a_k
+        central_diagonal: a_k
     };
 
-    eprintln!("{:#?}", aln);
-    eprintln!("\n\n.................................................................................................................\n\n\n");
+    if VERBOSITY_LEVEL > 0 {
+        eprintln!("\n");
+        eprintln!("{:#?}", aln);
+        eprintln!("\n\n\n\
+                   ................................................................\
+                   ................................................................\
+                   \n\n\n");
+    }
 
     aln
 }
@@ -420,22 +452,33 @@ fn wf_align(query: &str, text: &str) -> Alignment {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::needleman_wunsch as nw;
 
     #[test]
     fn test_align_equal_length() {
         // same sequence
         let text  = "GAGATA";
         let query = "GAGATA";
-        let aln = wf_align(query, text);
-        assert_eq!(aln.alignment_score, 6);
-        assert_eq!(aln.num_wavefronts, 1);
+        let aln_wfa = wf_align(query, text);
+
+        assert_eq!(aln_wfa.num_wavefronts, 1);
+
+        let aln_nw = nw::compute_alginment_score(query, text);
+        assert_eq!(aln_wfa.alignment_score as i32, aln_nw);
 
         // different sequences
         let text  = "GAGAAT";
         let query = "GAGATA";
-        let aln = wf_align(query, text);
-        assert_eq!(aln.alignment_score, 6);
+        let aln_wfa = wf_align(query, text).alignment_score as i32;
+        let aln_nw = nw::compute_alginment_score(query, text);
+        assert_eq!(aln_wfa, aln_nw);
 
+        // different sequences
+        let text  = "GAGGTACAAT";
+        let query = "GAGGTACAAG";
+        let aln_wfa = wf_align(query, text).alignment_score as i32;
+        let aln_nw = nw::compute_alginment_score(query, text);
+        assert_eq!(aln_wfa, aln_nw);
     }
 
     #[test]
@@ -445,17 +488,26 @@ mod tests {
         let text  = "GAGGTACAAT";
         let query = "GAGATA";
         let aln = wf_align(query, text);
-        assert_eq!(aln.alignment_score, 6);
+        assert_eq!(aln.alignment_score, 0);
     }
 
     #[test]
     fn test_align_longer_query() {
 
         // different sequences
-        let text  = "GAGAAT";
+        let text  = "GAGATAGGTA";
         let query = "GAGATAGATA";
         let aln = wf_align(query, text);
-        assert_eq!(aln.alignment_score, 6);
+        assert_eq!(aln.alignment_score, 10);
+
+
+        let text = "TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT\
+                    TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT";
+        let query = "TCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAAT\
+                     AGTTCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAA\
+                     AATAGT";
+        let aln = wf_align(query, text);
+        assert_eq!(aln.alignment_score as i32, nw::compute_alginment_score(query, text));
     }
 
     #[test]
@@ -463,13 +515,13 @@ mod tests {
         let text = "GATACA";
         let query = "GAGATA";
 
-        let wf = WaveFronts::new(text.len(), text.len(), query.len());
+        let wf = WaveFronts::new(text.len(), query.len());
 
-        assert_eq!(wf.lowest_diagonal, -(query.len() as isize));
-        assert_eq!(wf.diagnoal_index(text.len() as isize), text.len()+query.len());
+        assert_eq!(wf.lowest_diagonal, negate!(query.len()));
+        assert_eq!(wf.diagnoal_index(text.len() as isize), Some(text.len()+query.len()));
 
         let negative_query_len = negate!(query.len());
-        assert_eq!(wf.diagnoal_index(negative_query_len), 0);
+        assert_eq!(wf.diagnoal_index(negative_query_len), Some(0));
     }
 
     #[test]

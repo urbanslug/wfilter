@@ -2,17 +2,14 @@ use std::cmp::{max};
 use self::utils::*;
 use self::types::*;
 
-const VERBOSITY_LEVEL: usize = 1;
+const VERBOSITY_LEVEL: usize = 0;
+
+/*
+k = (v-h) + (qlen-1)
+ */
 
 #[macro_use]
 mod macros {
-
-}
-
-mod utils {
-
-    use super::types::*;
-
     macro_rules! abs {
         ($x: expr) => {{
             if $x >= 0 {
@@ -22,76 +19,49 @@ mod utils {
             }
         }};
     }
+}
 
-    pub fn v(offset: usize, diagonal: usize, central_diagonal: usize) -> usize {
-        offset + abs!(central_diagonal as isize - diagonal as isize) as usize
+mod utils {
+    use super::types::*;
+
+    pub fn compute_k(k: isize, central_diagonal: usize) -> usize {
+        (k + central_diagonal as isize) as usize
     }
 
-    pub fn h(offset: usize) -> usize {
-        offset
+    pub fn v(offset: Offset, diagonal: usize, central_diagonal: usize) -> Offset {
+        if diagonal <= central_diagonal {
+            offset
+        } else {
+            offset + abs!(diagonal as isize - central_diagonal as isize ) as usize
+        }
     }
 
-
-    #[allow(dead_code)]
-    fn print_matrix(wavefronts: &Wavefronts, score: usize, central_diagonal: usize) {
-        let query = wavefronts.query;
-        let text = wavefronts.text;
-        let qlen = query.len();
-        let tlen = text.len();
-
-        let mut dp_matrix: Vec<Vec<Option<usize>>> = vec![vec![None; qlen]; tlen];
-
-        let offsets: &Vec<Offset> = &wavefronts.get_wavefront(score).unwrap().mwavefront.offsets;
-
-        offsets.iter().enumerate().for_each(|(diagonal, offset): (usize, &usize)| {
-            let offset = *offset;
-            let v: usize = v(offset, diagonal, central_diagonal);
-            let h: usize = h(offset);
-
-            if offset > 0 {
-                dp_matrix[h][v] = Some(score);
-            }
-        });
-
-        // print col nums
-        eprint!("\t");
-        dp_matrix[0].iter().enumerate().for_each(|(j, _)| {
-            eprint!("{}\t", query[j] as char);
-        });
-        eprint!("\n");
-        eprint!("\t");
-        dp_matrix[0].iter().enumerate().for_each(|(j, _)| {
-            eprint!("{}\t", j);
-        });
-        eprint!("\n");
-        dp_matrix.iter().enumerate().for_each(|(i, row)| {
-            eprint!("{} {}\t", text[i] as char, i);
-            row.iter().for_each(|col| {
-                match col {
-                    Some(o) => { eprint!("{}", o) },
-                    None =>  { eprint!("*") },
-                }
-                eprint!("\t");
-            });
-            eprint!("\n");
-        });
-
-        eprint!("\n\n");
-
-        //std::io::stdout().flush().unwrap();
+    pub fn h(offset: Offset, diagonal: usize, central_diagonal: usize) -> Offset {
+        if diagonal <= central_diagonal {
+            offset + abs!(diagonal as isize - central_diagonal as isize ) as usize
+        } else {
+            offset
+        }
     }
 }
 
-
 mod types {
+    pub type Offset = usize;
+
     pub struct Alignment {
         pub score: usize,
     }
 
-    pub type Offset = usize;
+    #[derive(Copy, Clone)]
+    pub struct Penalties {
+        pub mismatch: usize,
+        pub matches: usize,
+        pub gap_open: usize,
+        pub gap_extend: usize,
+    }
 
     pub struct Wavefront {
-        // TODO: make usize
+        // TODO: make usize?
         pub hi: isize,
         pub lo: isize,
         pub offsets: Vec<Offset>,
@@ -131,15 +101,17 @@ mod types {
 
         pub diagonals: usize,
 
-        central_diagonal: usize, // k_zero
-        max_diagonal: usize,
+        pub central_diagonal: usize, // k_zero
+        // max_diagonal: usize,
+        pub min_diagonal: isize,
 
+        pub penalties: Penalties,
 
         pub dp_matrix: Vec<Vec<Option<usize>>>,
     }
 
     impl<'a> Wavefronts<'a> {
-        pub fn new(query: &'a[u8], text: &'a[u8]) -> Self {
+        pub fn new(query: &'a[u8], text: &'a[u8], penalties: Penalties) -> Self {
 
             let qlen = query.len();
             let tlen = text.len();
@@ -157,8 +129,10 @@ mod types {
                 text,
                 wavefronts,
                 diagonals,
+                penalties,
                 central_diagonal: qlen - 1,
-                max_diagonal: diagonals - 2,
+                // max_diagonal: diagonals - 2,
+                min_diagonal: -(qlen as isize -1),
                 dp_matrix,
             }
         }
@@ -203,11 +177,28 @@ mod types {
             });
 
             eprint!("\n\n");
+        }
 
+        pub fn print_tsv(&self) {
+            let dp_matrix = &self.dp_matrix;
+            let query = self.query;
+            let text = self.text;
+
+            println!("text\tquery\tscore\tqbase\ttbase");
+            dp_matrix.iter().enumerate().for_each(|(i, row)| {
+                row.iter().enumerate().for_each(|(j, col)| {
+                    match col {
+                        Some(score) => {
+                            println!("{}\t{}\t{}\t{}\t{}",
+                                     i, j, score, query[j] as char, text[i] as char);
+                        },
+                        None =>  {},
+                    }
+                });
+            });
         }
     }
 }
-
 
 fn wf_extend<T>(mwavefront: &mut Wavefront,
                 match_lambda: T,
@@ -215,46 +206,63 @@ fn wf_extend<T>(mwavefront: &mut Wavefront,
                 score: usize,
                 dp_matrix: &mut Vec<Vec<Option<usize>>>)
 where
-    T: Fn(usize, usize) -> bool,
+    T: Fn(usize, usize, usize, &mut Vec<Vec<Option<usize>>>) -> bool,
 {
-    for k in mwavefront.lo..=mwavefront.hi {
-        let k = (k + central_diagonal as isize) as usize;
+    let lo = mwavefront.lo;
+    let hi = mwavefront.hi;
+
+    if VERBOSITY_LEVEL > 2 {
+        eprintln!("[wf_extend] Extending wavefront with score {}", score);
+        eprintln!("\tlo={}, hi={}", lo, hi);
+    }
+
+    for k in lo..=hi {
+        let _lo = k;
+        let k: usize = compute_k(k, central_diagonal);
+
         if  k >= mwavefront.offsets.len() {
             if VERBOSITY_LEVEL > 3 {
                 eprintln!("[wf_extend] k={} is therefore out of scope. Skipping", k);
             }
             continue;
         }
-        let mut v: usize = v(mwavefront.offsets[k], k, central_diagonal);
-        let mut h: usize = h(mwavefront.offsets[k]);
+        let offset = mwavefront.offsets[k];
+        let mut v: usize = v(offset, k, central_diagonal);
+        let mut h: usize = h(offset, k, central_diagonal);
 
-        while match_lambda(v,h) {
-            // println!("k={} ({}, {})", k , v, h);
-            dp_matrix[h][v] = Some(score);
+        if VERBOSITY_LEVEL > 4 {
+            eprintln!("\tk={} offset={}", k, offset);
+            eprintln!("\tpre extend k={} offset={} ({},{})", k, offset, v, h);
+        }
+
+        while match_lambda(v, h, score, dp_matrix) {
             mwavefront.offsets[k] += 1;
             v += 1;
             h += 1;
         }
+
+        if VERBOSITY_LEVEL > 4 {
+            eprintln!("\tpost extend k={} offset={} ({},{})", k, mwavefront.offsets[k], v, h);
+            eprintln!("");
+        }
+
     }
 }
 
+fn wf_expand(wavefronts: &mut Wavefronts, score: usize) -> (isize, isize) {
 
-fn wf_next(wavefronts: &mut Wavefronts, score: usize) {
+    let s: isize = score as isize;
 
-    let x: isize = 4; let o: isize = 6; let e: isize = 1; let s: isize = score as isize;
-
-    let num_wavefronts = wavefronts.wavefronts.len();
-    if num_wavefronts <= score {
-        (num_wavefronts..=score).for_each(|_| {
-            wavefronts.wavefronts.push(WavefrontSet::new(wavefronts.diagonals));
-        });
-    }
+    let x: isize = wavefronts.penalties.mismatch as isize;
+    let o: isize = wavefronts.penalties.gap_open as isize;
+    let e: isize = wavefronts.penalties.gap_extend as isize;
 
     let m_hi =  wavefronts.get_wavefront(score).unwrap().mwavefront.hi;
-    let m_lo =  wavefronts.get_wavefront(score).unwrap().mwavefront.lo;
-    let d_hi =  wavefronts.get_wavefront(score).unwrap().dwavefront.hi;
-    let d_lo =  wavefronts.get_wavefront(score).unwrap().dwavefront.lo;
     let i_hi =  wavefronts.get_wavefront(score).unwrap().iwavefront.hi;
+    let d_hi =  wavefronts.get_wavefront(score).unwrap().dwavefront.hi;
+
+    let m_lo =  wavefronts.get_wavefront(score).unwrap().mwavefront.lo;
+    let d_lo =  wavefronts.get_wavefront(score).unwrap().dwavefront.lo;
     let i_lo =  wavefronts.get_wavefront(score).unwrap().iwavefront.lo;
 
     let hi = vec![
@@ -269,52 +277,90 @@ fn wf_next(wavefronts: &mut Wavefronts, score: usize) {
         if s-o-e < 0 { m_lo } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront.lo },
         if s-e   < 0 { i_lo } else { wavefronts.get_wavefront((s-e) as usize).unwrap().iwavefront.lo },
         if s-e   < 0 { d_lo } else { wavefronts.get_wavefront((s-e) as usize).unwrap().dwavefront.lo},
-    ].iter().max().unwrap() - 1;
+    ].iter().min().unwrap() - 1;
 
-    // set new lo
     wavefronts.get_wavefront_mut(score).unwrap().mwavefront.hi = hi;
-    wavefronts.get_wavefront_mut(score).unwrap().mwavefront.lo = lo;
-    wavefronts.get_wavefront_mut(score).unwrap().iwavefront.hi = hi;
-    wavefronts.get_wavefront_mut(score).unwrap().iwavefront.lo = lo;
     wavefronts.get_wavefront_mut(score).unwrap().dwavefront.hi = hi;
+    wavefronts.get_wavefront_mut(score).unwrap().iwavefront.hi = hi;
+
+    wavefronts.get_wavefront_mut(score).unwrap().iwavefront.lo = lo;
+    wavefronts.get_wavefront_mut(score).unwrap().mwavefront.lo = lo;
     wavefronts.get_wavefront_mut(score).unwrap().dwavefront.lo = lo;
 
+    (lo, hi)
+}
+
+fn wf_next(wavefronts: &mut Wavefronts, score: usize) {
+    if VERBOSITY_LEVEL > 2 {
+        eprintln!("[wf_next] Computing wavefront for score {}", score);
+    }
+
+    let s: isize = score as isize;
+
+    let x: isize = wavefronts.penalties.mismatch as isize;
+    let o: isize = wavefronts.penalties.gap_open as isize;
+    let e: isize = wavefronts.penalties.gap_extend as isize;
+
+    let num_wavefronts = wavefronts.wavefronts.len();
+    if num_wavefronts <= score {
+        (num_wavefronts..=score).for_each(|_| {
+            wavefronts.wavefronts.push(WavefrontSet::new(wavefronts.diagonals));
+        });
+    }
+
+    let (lo, hi) = wf_expand(wavefronts, score);
+
+    if VERBOSITY_LEVEL > 3 {
+        eprintln!("\tk'\tk\tmmax\timax\tdmax");
+    }
+
     for k in lo..=hi {
-        if k < 0 {
+        if k < wavefronts.min_diagonal {
             if VERBOSITY_LEVEL > 3 {
                 eprintln!("[wf_next] k={} is therefore out of scope. Skipping", k);
             }
             continue;
         }
 
-        let k = k as usize;
+        let k: usize = compute_k(k, wavefronts.central_diagonal);
 
         let imax = *vec![
-            if s-o-e < 0 || k <= 0  || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront.offsets[(k-1) as usize] },
-            if s-e < 0   || k <= 0 || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-e) as usize).unwrap().iwavefront.offsets[(k-1) as usize] },
-        ].iter().max().unwrap() + 1;
+            if s-o-e < 0 || k <= 0 || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront.offsets[(k-1) as usize] as isize },
+            if s-e < 0   || k <= 0 || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-e) as usize).unwrap().iwavefront.offsets[(k-1) as usize] as isize },
+        ].iter().max().unwrap();
+
+        if k < wavefronts.diagonals {
+            wavefronts.get_wavefront_mut(score).unwrap().iwavefront.offsets[k] = imax as usize;
+        }
 
         let dmax = *vec![
-            if s-o-e < 0 || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront.offsets[k+1] },
-            if s-e < 0 || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-e) as usize).unwrap().dwavefront.offsets[k+1] },
+            if s-o-e < 0 || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront.offsets[k+1] as isize },
+            if s-e < 0   || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-e) as usize).unwrap().dwavefront.offsets[k+1] as isize},
         ].iter().max().unwrap();
+
+        if k < wavefronts.diagonals  {
+            wavefronts.get_wavefront_mut(score).unwrap().dwavefront.offsets[k] = dmax as usize;
+        }
 
         let mmax = *vec![
-            if s-x < 0 || k >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-x) as usize).unwrap().mwavefront.offsets[k] + 1 },
-            if  k >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront(score).unwrap().iwavefront.offsets[k] },
-            if  k >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront(score).unwrap().dwavefront.offsets[k] },
+            if s-x < 0 || k >= wavefronts.diagonals { 0 } else { (wavefronts.get_wavefront((s-x) as usize).unwrap().mwavefront.offsets[k] + 1 as usize) as isize},
+            if            k >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront(score).unwrap().iwavefront.offsets[k] as isize },
+            if            k >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront(score).unwrap().dwavefront.offsets[k] as isize },
         ].iter().max().unwrap();
 
-        if k >= wavefronts.diagonals { continue; }
-        wavefronts.get_wavefront_mut(score).unwrap().iwavefront.offsets[k] = imax;
-        wavefronts.get_wavefront_mut(score).unwrap().dwavefront.offsets[k] = dmax;
-        wavefronts.get_wavefront_mut(score).unwrap().mwavefront.offsets[k] = mmax;
-    }
+        if k < wavefronts.diagonals {
+            wavefronts.get_wavefront_mut(score).unwrap().mwavefront.offsets[k] = mmax as usize;
+        }
 
+        if VERBOSITY_LEVEL > 3 {
+            let k_prime = k as isize - wavefronts.central_diagonal as isize;
+            eprintln!("\t{}\t{}\t{}\t{}\t{}", k_prime, k, mmax, imax, dmax);
+        }
+    }
 }
 
-fn wf_align(text: &[u8], query: &[u8]) -> Alignment {
-    let mut wavefronts = Wavefronts::new(query, text);
+fn wf_align(text: &[u8], query: &[u8], penalties: Penalties) -> Alignment {
+    let mut wavefronts = Wavefronts::new(query, text, penalties);
 
     let qlen = query.len();
     let tlen = text.len();
@@ -327,10 +373,16 @@ fn wf_align(text: &[u8], query: &[u8]) -> Alignment {
 
     let mut score = 0;
 
-    // let exit_condition = || { *wavefronts.get_wavefront(score).unwrap().mwavefront.offsets.get(a_k).unwrap() >= a_offset };
+    let exit_condition = |wavefronts: &Wavefronts, score: usize| {
+        *wavefronts.get_wavefront(score).unwrap().mwavefront.offsets.get(a_k).unwrap() >= a_offset
+    };
 
-    let match_lambda = |v: usize, h: usize| {
-        h < tlen && v < qlen &&  text[h] == query[v]
+    let match_lambda = |v: usize, h: usize, score: usize, dp_matrix:  &mut Vec<Vec<Option<usize>>>| -> bool {
+        if h < tlen && v < qlen && dp_matrix[h][v] == None {
+            dp_matrix[h][v] = Some(score);
+        }
+
+        h < tlen && v < qlen && text[h] == query[v]
     };
 
     loop {
@@ -339,20 +391,34 @@ fn wf_align(text: &[u8], query: &[u8]) -> Alignment {
         let m_s = &mut wavefronts.wavefronts.get_mut(score).unwrap().mwavefront;
         wf_extend(m_s, match_lambda, a_k, score, dp_matrix);
 
-        if wavefronts.get_wavefront(score).unwrap().mwavefront.offsets[a_k] >= a_offset {
-            let score = if score > 0 {score - 1} else { score };
-
-            if VERBOSITY_LEVEL > 0 {
-                eprintln!("score: {}, central_diagonal(a_k): {}, max_offset(a_offset): {} ",
-                          score,
-                          a_k,
-                          a_offset);
+        if exit_condition(&wavefronts, score) {
+            if VERBOSITY_LEVEL > 2 {
+                eprintln!("Final state of the DP table");
+                eprintln!("---------------------------");
+                wavefronts.print();
             }
 
+            if VERBOSITY_LEVEL > 0 {
+                eprintln!("\tscore: {}\n\
+                           \tcentral diagonal (a_k): {}\n\
+                           \tmaximum offset (a_offset): {}\n\
+                           \tquery: {}\n\
+                           \ttext:  {}\n",
+                          score,
+                          a_k,
+                          a_offset,
+                          std::str::from_utf8(query).unwrap(),
+                          std::str::from_utf8(text).unwrap());
+                eprintln!("");
+            }
+
+            if VERBOSITY_LEVEL > 3 {
+                wavefronts.print_tsv();
+            }
             return Alignment {score: score};
         }
 
-        if VERBOSITY_LEVEL > 3 {
+        if VERBOSITY_LEVEL > 2 {
             wavefronts.print();
         }
 
@@ -366,33 +432,67 @@ fn wf_align(text: &[u8], query: &[u8]) -> Alignment {
 mod tests {
     use super::*;
 
+    static PENALTIES: Penalties =  Penalties {
+        mismatch: 4,
+        matches: 0,
+        gap_open: 6,
+        gap_extend: 2,
+    };
+
+
     #[test]
     fn test_same_sequence() {
         // same sequence
         let text  = "GAGATA";
         let query = "GAGATA";
 
-        let aln = wf_align(text.as_bytes(), query.as_bytes());
+        let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
         assert_eq!(aln.score, 0);
     }
 
-
     #[test]
     fn test_paper_test_case() {
+        let text  = "GAT";
+        let query = "GAG";
+        let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+        assert_eq!(aln.score, 4);
+
         let text  = "GATACA";
         let query = "GAGATA";
-        let aln = wf_align(text.as_bytes(), query.as_bytes());
+        let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
         assert_eq!(aln.score, 8);
     }
 
     #[test]
+    fn test_c_example() {
+        let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGT";
+        let text  = "TCTATACTGCGCGTTTGGAGAAATAAAATAGT";
+
+        let aln = wf_align(&text.as_bytes()[..10], &query.as_bytes()[..10], PENALTIES);
+        assert_eq!(aln.score, 12);
+
+        let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+        assert_eq!(aln.score, 24);
+    }
+
+    #[test]
     fn test_same_length() {
-        let text  = "TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT\
-                     TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT";
-        let query = "TCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
-                     TCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT";
-        let aln = wf_align(text.as_bytes(), query.as_bytes());
-        assert_eq!(aln.score, 250);
+        let text  = "TCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAA\
+                     ATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAA\
+                     ATAAAATAGT";
+        let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACA\
+                     ATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAA\
+                     ATACAATAGT";
+
+        let p =  Penalties {
+            mismatch: 7,
+            matches: 0,
+            gap_open: 11,
+            gap_extend: 1,
+        };
+
+        let aln = wf_align(text.as_bytes(), query.as_bytes(), p);
+        assert_eq!(aln.score, 16);
     }
 
     #[test]
@@ -402,8 +502,8 @@ mod tests {
         let query = "TCTATACTGCGCGTTTATCTAGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
                      TCTATACTGCGCGTTTGGAGAAATAACTATCAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT";
 
-        let aln = wf_align(text.as_bytes(), query.as_bytes());
-        assert_eq!(aln.score, 536);
+        let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+        assert_eq!(aln.score, 200);
     }
 
     #[test]
@@ -413,7 +513,7 @@ mod tests {
         let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT\
                      TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT";
 
-        let aln = wf_align(text.as_bytes(), query.as_bytes());
-        assert_eq!(aln.score, 526);
+        let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+        assert_eq!(aln.score, 200);
     }
 }

@@ -1,8 +1,10 @@
 use std::fmt;
 
 pub struct CliArgs {
-    pub debug: bool,
+    pub verbosity_level: u8,
     pub input_paf: String,
+    pub target_fasta: String,
+    pub query_fasta: String,
 }
 
 #[derive(PartialEq, Debug)]
@@ -32,10 +34,15 @@ impl fmt::Debug for Strand {
 
 impl CliArgs {
     #[allow(dead_code)] // TODO: remove dead code
-    pub fn new(debug: bool, paf_filepath: &str) -> Self {
+    pub fn new(verbosity_level: u8,
+               paf_filepath: &str,
+               target_filepath: &str,
+               query_filepath: &str) -> Self {
         CliArgs {
-            debug,
+            verbosity_level,
             input_paf: String::from(paf_filepath),
+            target_fasta: String::from(target_filepath),
+            query_fasta: String::from(query_filepath),
         }
     }
 }

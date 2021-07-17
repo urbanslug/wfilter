@@ -3,8 +3,11 @@ use std::cmp::{max};
 use self::utils::*;
 use self::types::*;
 use self::backtrace_utils::*;
+use super::super::types::CliArgs;
 
-const VERBOSITY_LEVEL: usize = 0;
+use indicatif::{ProgressBar, ProgressStyle};
+
+const VERBOSITY_LEVEL: usize = 2;
 const NULL_OFFSET: isize = -10;
 
 /*
@@ -120,7 +123,7 @@ mod utils {
     }
 }
 
-mod types {
+pub mod types {
     use std::cmp::max;
 
     pub type Offset = usize;
@@ -295,14 +298,15 @@ fn wf_extend<T>(mwavefront: &mut Wavefront,
                 match_lambda: T,
                 central_diagonal: usize,
                 score: usize,
-                dp_matrix: &mut Vec<Vec<Option<usize>>>)
+                dp_matrix: &mut Vec<Vec<Option<usize>>>,
+                verbosity: u8)
 where
     T: Fn(usize, usize, usize, usize, &mut Vec<Vec<Option<usize>>>) -> bool,
 {
     let lo = mwavefront.lo;
     let hi = mwavefront.hi;
 
-    if VERBOSITY_LEVEL > 2 {
+    if verbosity > 2 {
         eprintln!("[wf_extend] Extending wavefront with score {}", score);
         eprintln!("\tlo={}, hi={}", lo, hi);
     }
@@ -312,7 +316,7 @@ where
         let k: usize = compute_k(k, central_diagonal);
 
         if  k >= mwavefront.offsets.len() {
-            if VERBOSITY_LEVEL > 3 {
+            if verbosity > 3 {
                 eprintln!("[wf_extend] k={} is therefore out of scope. Skipping", k);
             }
             continue;
@@ -321,7 +325,7 @@ where
         let mut v: usize = v(offset, k, central_diagonal);
         let mut h: usize = h(offset, k, central_diagonal);
 
-        if VERBOSITY_LEVEL > 4 {
+        if verbosity > 4 {
             eprintln!("\tk={} offset={}", k, offset);
             eprintln!("\tpre extend k={} offset={} ({},{})", k, offset, v, h);
         }
@@ -332,7 +336,7 @@ where
             h += 1;
         }
 
-        if VERBOSITY_LEVEL > 4 {
+        if verbosity > 4 {
             eprintln!("\tpost extend k={} offset={} ({},{})", k, mwavefront.offsets[k], v, h);
             eprintln!("");
         }
@@ -381,8 +385,8 @@ fn wf_expand(wavefronts: &mut Wavefronts, score: usize) -> (isize, isize) {
     (lo, hi)
 }
 
-fn wf_next(wavefronts: &mut Wavefronts, score: usize) {
-    if VERBOSITY_LEVEL > 2 {
+fn wf_next(wavefronts: &mut Wavefronts, score: usize, verbosity: u8) {
+    if verbosity > 2 {
         eprintln!("[wf_next] Computing wavefront for score {}", score);
     }
 
@@ -401,13 +405,13 @@ fn wf_next(wavefronts: &mut Wavefronts, score: usize) {
 
     let (lo, hi) = wf_expand(wavefronts, score);
 
-    if VERBOSITY_LEVEL > 3 {
+    if verbosity > 3 {
         eprintln!("\tk'\tk\tmmax\timax\tdmax");
     }
 
     for k in lo..=hi {
         if k < wavefronts.min_diagonal {
-            if VERBOSITY_LEVEL > 3 {
+            if verbosity > 3 {
                 eprintln!("[wf_next] k={} is therefore out of scope. Skipping", k);
             }
             continue;
@@ -443,7 +447,7 @@ fn wf_next(wavefronts: &mut Wavefronts, score: usize) {
             wavefronts.get_wavefront_mut(score).unwrap().mwavefront.offsets[k] = mmax as usize;
         }
 
-        if VERBOSITY_LEVEL > 3 {
+        if verbosity > 3 {
             let k_prime = k as isize - wavefronts.central_diagonal as isize;
             eprintln!("\t{}\t{}\t{}\t{}\t{}", k_prime, k, mmax, imax, dmax);
         }
@@ -549,8 +553,8 @@ mod backtrace_utils {
 }
 
 #[allow(unused_variables, unused_mut)]
-fn backtrace(wavefronts: &mut Wavefronts, score: usize) -> String {
-    if VERBOSITY_LEVEL > 2 {
+fn backtrace(wavefronts: &mut Wavefronts, score: usize, verbosity: u8) -> String {
+    if verbosity > 2 {
         eprintln!("[backtrace]");
     }
 
@@ -580,7 +584,7 @@ fn backtrace(wavefronts: &mut Wavefronts, score: usize) -> String {
     let e: isize = wavefronts.penalties.gap_extend as isize;
 
     while v > 0 && h > 0 && score > 0 {
-        if VERBOSITY_LEVEL > 4 {
+        if verbosity > 4 {
             eprintln!("\tbacktrace_type = {:?}", backtrace_type);
         }
         // compute scores
@@ -605,7 +609,7 @@ fn backtrace(wavefronts: &mut Wavefronts, score: usize) -> String {
         // Compute maximum offset
         let max_all = *vec![del_ext, del_open, ins_ext, ins_open, misms].iter().max().unwrap();
 
-        if VERBOSITY_LEVEL > 4 {
+        if verbosity > 4 {
             eprintln!("\tscore={} offset={} k={} \
                        gap_open_score={} gap_extend_score={} mismatch_score={} \
                        max_all={} del_ext={} del_open={} ins_ext={} ins_open={} mims={} \
@@ -692,7 +696,8 @@ fn backtrace(wavefronts: &mut Wavefronts, score: usize) -> String {
     cigar
 }
 
-fn wf_align(text: &[u8], query: &[u8], penalties: Penalties) -> Alignment {
+pub fn wf_align(text: &[u8], query: &[u8], penalties: Penalties, cli_args: &CliArgs) -> Alignment {
+    let verbosity = cli_args.verbosity_level;
     let mut wavefronts = Wavefronts::new(query, text, penalties);
 
     let qlen = query.len();
@@ -706,8 +711,23 @@ fn wf_align(text: &[u8], query: &[u8], penalties: Penalties) -> Alignment {
 
     let mut score = 0;
 
-    let exit_condition = |wavefronts: &Wavefronts, score: usize| {
-        *wavefronts.get_wavefront(score).unwrap().mwavefront.offsets.get(a_k).unwrap() >= a_offset
+    // Progress bar
+    let bar = ProgressBar::new(a_offset as u64);
+    let template = "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})";
+    let progress_style = ProgressStyle::default_bar().template(template).progress_chars("#>-");
+    bar.set_style(progress_style);
+    let mut progress_value: u64 = 0;
+
+    let mut exit_condition = |wavefronts: &Wavefronts, score: usize| {
+        let current_offset = *wavefronts.get_wavefront(score).unwrap().mwavefront.offsets.get(a_k).unwrap();
+        if verbosity > 1 {
+            // handle progress bar
+            let delta = current_offset as u64 - progress_value;
+            bar.inc(delta);
+            progress_value = current_offset as u64;
+        }
+
+        current_offset >= a_offset
     };
 
     let match_lambda =
@@ -717,50 +737,44 @@ fn wf_align(text: &[u8], query: &[u8], penalties: Penalties) -> Alignment {
         }
 
         h < tlen && v < qlen && text[h] == query[v]
-    };
+        };
 
     loop {
         let dp_matrix = &mut wavefronts.dp_matrix;
         let m_s = &mut wavefronts.wavefronts.get_mut(score).unwrap().mwavefront;
-        wf_extend(m_s, match_lambda, a_k, score, dp_matrix);
+        wf_extend(m_s, match_lambda, a_k, score, dp_matrix, verbosity);
 
         if exit_condition(&wavefronts, score) {
-            if VERBOSITY_LEVEL > 2 {
+            if verbosity > 3 {
                 eprintln!("Final state of the DP table");
                 eprintln!("---------------------------");
                 wavefronts.print();
             }
 
-            if VERBOSITY_LEVEL > 0 {
+            if verbosity > 2 {
                 eprintln!("\tscore: {}\n\
                            \tcentral diagonal (a_k): {}\n\
-                           \tmaximum offset (a_offset): {}\n\
-                           \tquery: {}\n\
-                           \ttext:  {}\n",
+                           \tmaximum offset (a_offset): {}",
                           score,
                           a_k,
-                          a_offset,
-                          std::str::from_utf8(query).unwrap(),
-                          std::str::from_utf8(text).unwrap());
-                eprintln!("");
+                          a_offset);
             }
 
-            if VERBOSITY_LEVEL > 3 {
+            if verbosity > 3 {
                 wavefronts.print_tsv();
             }
 
-            //wavefronts.print_tsv();
-            let cigar = backtrace(&mut wavefronts, score);
+            let cigar = backtrace(&mut wavefronts, score, verbosity);
             return Alignment {score, cigar};
         }
 
-        if VERBOSITY_LEVEL > 2 {
+        if verbosity > 3 {
             wavefronts.print();
         }
 
         score += 1;
 
-        wf_next(&mut wavefronts, score);
+        wf_next(&mut wavefronts, score, verbosity);
     }
 }
 
@@ -775,9 +789,16 @@ mod tests {
         gap_extend: 2,
     };
 
+    static CLI: CliArgs = CliArgs {
+        verbosity_level: 1,
+        input_paf: String::new(),
+        target_fasta: String::new(),
+        query_fasta: String::new(),
+    };
+
     mod backtrace {
         use super::super::*;
-        use super::PENALTIES;
+        use super::{PENALTIES, CLI};
 
         #[test]
         fn test_same_sequence() {
@@ -785,7 +806,7 @@ mod tests {
             let text  = "GAGATA";
             let query = "GAGATA";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
             assert_eq!(aln.score, 0);
             assert_eq!(aln.cigar, String::from("6M"));
         }
@@ -796,7 +817,7 @@ mod tests {
             let text  = "GACATA";
             let query = "GAGATA";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
             assert_eq!(aln.score, 4);
             assert_eq!(aln.cigar, String::from("2M1X3M"));
         }
@@ -806,7 +827,7 @@ mod tests {
             let text  = "GATACA";
             let query = "GAGATA";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
             assert_eq!(aln.score, 8);
             assert_eq!(aln.cigar, String::from("2M1X1M1X1M"));
         }
@@ -816,7 +837,7 @@ mod tests {
             let text  = "TCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT";
             let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
             assert_eq!(aln.score, 96);
             assert_eq!(aln.cigar, String::from("3M1X4M1I6M1D10M1X9M1X4M1I6M1D10M1X9M1X4M1I6M1D10M1X9M1X4M1I6M1D10M1X6M"));
             // assert_eq!(aln.cigar, String::from("3M1X4M1D7M1I9M1X9M1X4M1D7M1I9M1X9M1X4M1D7M1I9M1X9M1X4M1D7M1I9M1X6M"));
@@ -841,7 +862,7 @@ mod tests {
 
     mod align {
         use super::super::*;
-        use super::PENALTIES;
+        use super::{PENALTIES, CLI};
 
         #[test]
         fn test_same_sequence() {
@@ -849,7 +870,7 @@ mod tests {
             let text  = "GAGATA";
             let query = "GAGATA";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
             assert_eq!(aln.score, 0);
         }
 
@@ -857,12 +878,12 @@ mod tests {
         fn test_paper_test_case() {
             let text  = "GAT";
             let query = "GAG";
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
             assert_eq!(aln.score, 4);
 
             let text  = "GATACA";
             let query = "GAGATA";
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
             assert_eq!(aln.score, 8);
         }
 
@@ -871,10 +892,10 @@ mod tests {
             let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGT";
             let text  = "TCTATACTGCGCGTTTGGAGAAATAAAATAGT";
 
-            let aln = wf_align(&text.as_bytes()[..10], &query.as_bytes()[..10], PENALTIES);
+            let aln = wf_align(&text.as_bytes()[..10], &query.as_bytes()[..10], PENALTIES, &CLI);
             assert_eq!(aln.score, 12);
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
             assert_eq!(aln.score, 24);
         }
 
@@ -894,7 +915,7 @@ mod tests {
                 gap_extend: 1,
             };
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
             assert_eq!(aln.score, 96);
         }
 
@@ -905,7 +926,7 @@ mod tests {
             let query = "TCTATACTGCGCGTTTATCTAGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
                          TCTATACTGCGCGTTTGGAGAAATAACTATCAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
             assert_eq!(aln.score, 200);
         }
 
@@ -916,7 +937,7 @@ mod tests {
             let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT\
                          TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
             assert_eq!(aln.score, 200);
         }
     }

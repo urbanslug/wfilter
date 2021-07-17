@@ -23,16 +23,34 @@ pub fn start() -> types::CliArgs {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("debug")
-                .short("d")
-                .long("debug")
-                .help("Show debug statements [Default: false]"),
+            Arg::with_name("target_fasta")
+                .short("t")
+                .long("target-fasta")
+                .value_name("FILE")
+                .help("Path to input target fasta file")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("query_fasta")
+                .short("q")
+                .long("query-fasta")
+                .value_name("FILE")
+                .help("Path to input target fasta file")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("v")
+                .short("v")
+                .multiple(true)
+                .help("Sets the level of verbosity [Default: none]"),
         )
         .get_matches();
 
     // Gets a value for config if supplied by user, or defaults to "default.conf"
     let paf_file_path: &str = matches.value_of("input_paf").unwrap();
-    let debug: bool = matches.is_present("debug");
+    let target_file_path: &str = matches.value_of("target_fasta").unwrap();
+    let query_file_path: &str = matches.value_of("query_fasta").unwrap();
+    let verbosity_level: u8 = matches.occurrences_of("v") as u8;
 
-    types::CliArgs::new(debug, paf_file_path)
+    types::CliArgs::new(verbosity_level, paf_file_path, target_file_path, query_file_path)
 }

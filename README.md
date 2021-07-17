@@ -1,3 +1,3 @@
 # wfilter
 
-Filter messy over local alignments with a global alignment.
+Filter overy local alignments with a global alignment.

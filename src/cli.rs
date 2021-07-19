@@ -52,5 +52,10 @@ pub fn start() -> types::CliArgs {
     let query_file_path: &str = matches.value_of("query_fasta").unwrap();
     let verbosity_level: u8 = matches.occurrences_of("v") as u8;
 
-    types::CliArgs::new(verbosity_level, paf_file_path, target_file_path, query_file_path)
+    types::CliArgs::new(verbosity_level,
+                        paf_file_path,
+                        target_file_path,
+                        query_file_path,
+                        None // TODO: implement penalties
+    )
 }

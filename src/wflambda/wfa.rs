@@ -3,7 +3,8 @@ use std::cmp::{max};
 use self::utils::*;
 use self::types::*;
 use self::backtrace_utils::*;
-use super::super::types::CliArgs;
+
+use super::super::types::{CliArgs, Penalties};
 
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -96,7 +97,7 @@ mod utils {
 
         // edge cases
         if cigar.len() == 0 {
-            panic!("[run_length_encode] empty cigar");
+            panic!("[wfa::utils::run_length_encode] empty cigar");
         } else if cigar.len() == 1 {
             xcigar.push_str(&format!("{}{}", 1, cigar));
             xcigar
@@ -125,6 +126,7 @@ mod utils {
 
 pub mod types {
     use std::cmp::max;
+    use super::super::super::types::Penalties;
 
     pub type Offset = usize;
     pub type DpMatrix = Vec<Vec<Option<usize>>>;
@@ -139,14 +141,6 @@ pub mod types {
         Insertion,
         Deletion,
         MatchMismatch
-    }
-
-    #[derive(Copy, Clone)]
-    pub struct Penalties {
-        pub mismatch: usize,
-        pub matches: usize,
-        pub gap_open: usize,
-        pub gap_extend: usize,
     }
 
     #[derive(Debug)]
@@ -307,7 +301,7 @@ where
     let hi = mwavefront.hi;
 
     if verbosity > 2 {
-        eprintln!("[wf_extend] Extending wavefront with score {}", score);
+        eprintln!("[wfa::wf_extend] Extending wavefront with score {}", score);
         eprintln!("\tlo={}, hi={}", lo, hi);
     }
 
@@ -317,7 +311,7 @@ where
 
         if  k >= mwavefront.offsets.len() {
             if verbosity > 3 {
-                eprintln!("[wf_extend] k={} is therefore out of scope. Skipping", k);
+                eprintln!("[wfa::wf_extend] k={} is therefore out of scope. Skipping", k);
             }
             continue;
         }
@@ -554,8 +548,8 @@ mod backtrace_utils {
 
 #[allow(unused_variables, unused_mut)]
 fn backtrace(wavefronts: &mut Wavefronts, score: usize, verbosity: u8) -> String {
-    if verbosity > 2 {
-        eprintln!("[backtrace]");
+    if verbosity > 1 {
+        eprintln!("[wfa::backtrace]");
     }
 
     let a_k = wavefronts.central_diagonal;
@@ -696,9 +690,10 @@ fn backtrace(wavefronts: &mut Wavefronts, score: usize, verbosity: u8) -> String
     cigar
 }
 
-pub fn wf_align(text: &[u8], query: &[u8], penalties: Penalties, cli_args: &CliArgs) -> Alignment {
+// TODO: remove arg penalties
+pub fn wf_align(text: &[u8], query: &[u8], penalties: Penalties , cli_args: &CliArgs) -> Alignment {
     let verbosity = cli_args.verbosity_level;
-    let mut wavefronts = Wavefronts::new(query, text, penalties);
+    let mut wavefronts = Wavefronts::new(query, text, cli_args.penalties);
 
     let qlen = query.len();
     let tlen = text.len();
@@ -790,10 +785,11 @@ mod tests {
     };
 
     static CLI: CliArgs = CliArgs {
-        verbosity_level: 1,
+        verbosity_level: 2,
         input_paf: String::new(),
         target_fasta: String::new(),
         query_fasta: String::new(),
+        penalties: PENALTIES,
     };
 
     mod backtrace {

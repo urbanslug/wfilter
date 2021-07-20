@@ -691,7 +691,7 @@ fn backtrace(wavefronts: &mut Wavefronts, score: usize, verbosity: u8) -> String
 }
 
 // TODO: remove arg penalties
-pub fn wf_align(text: &[u8], query: &[u8], penalties: Penalties , cli_args: &CliArgs) -> Alignment {
+pub fn wf_align(text: &[u8], query: &[u8], cli_args: &CliArgs) -> Alignment {
     let verbosity = cli_args.verbosity_level;
     let mut wavefronts = Wavefronts::new(query, text, cli_args.penalties);
 
@@ -785,7 +785,7 @@ mod tests {
     };
 
     static CLI: CliArgs = CliArgs {
-        verbosity_level: 2,
+        verbosity_level: 0,
         input_paf: String::new(),
         target_fasta: String::new(),
         query_fasta: String::new(),
@@ -794,7 +794,7 @@ mod tests {
 
     mod backtrace {
         use super::super::*;
-        use super::{PENALTIES, CLI};
+        use super::CLI;
 
         #[test]
         fn test_same_sequence() {
@@ -802,7 +802,7 @@ mod tests {
             let text  = "GAGATA";
             let query = "GAGATA";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
             assert_eq!(aln.score, 0);
             assert_eq!(aln.cigar, String::from("6M"));
         }
@@ -813,7 +813,7 @@ mod tests {
             let text  = "GACATA";
             let query = "GAGATA";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
             assert_eq!(aln.score, 4);
             assert_eq!(aln.cigar, String::from("2M1X3M"));
         }
@@ -823,7 +823,7 @@ mod tests {
             let text  = "GATACA";
             let query = "GAGATA";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
             assert_eq!(aln.score, 8);
             assert_eq!(aln.cigar, String::from("2M1X1M1X1M"));
         }
@@ -833,7 +833,7 @@ mod tests {
             let text  = "TCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT";
             let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
             assert_eq!(aln.score, 96);
             assert_eq!(aln.cigar, String::from("3M1X4M1I6M1D10M1X9M1X4M1I6M1D10M1X9M1X4M1I6M1D10M1X9M1X4M1I6M1D10M1X6M"));
             // assert_eq!(aln.cigar, String::from("3M1X4M1D7M1I9M1X9M1X4M1D7M1I9M1X9M1X4M1D7M1I9M1X9M1X4M1D7M1I9M1X6M"));
@@ -858,7 +858,7 @@ mod tests {
 
     mod align {
         use super::super::*;
-        use super::{PENALTIES, CLI};
+        use super::CLI;
 
         #[test]
         fn test_same_sequence() {
@@ -866,7 +866,7 @@ mod tests {
             let text  = "GAGATA";
             let query = "GAGATA";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
             assert_eq!(aln.score, 0);
         }
 
@@ -874,12 +874,12 @@ mod tests {
         fn test_paper_test_case() {
             let text  = "GAT";
             let query = "GAG";
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
             assert_eq!(aln.score, 4);
 
             let text  = "GATACA";
             let query = "GAGATA";
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
             assert_eq!(aln.score, 8);
         }
 
@@ -888,10 +888,10 @@ mod tests {
             let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGT";
             let text  = "TCTATACTGCGCGTTTGGAGAAATAAAATAGT";
 
-            let aln = wf_align(&text.as_bytes()[..10], &query.as_bytes()[..10], PENALTIES, &CLI);
+            let aln = wf_align(&text.as_bytes()[..10], &query.as_bytes()[..10], &CLI);
             assert_eq!(aln.score, 12);
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
             assert_eq!(aln.score, 24);
         }
 
@@ -904,14 +904,7 @@ mod tests {
                          ATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAA\
                          ATACAATAGT";
 
-            let _p =  Penalties {
-                mismatch: 7,
-                matches: 0,
-                gap_open: 11,
-                gap_extend: 1,
-            };
-
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
             assert_eq!(aln.score, 96);
         }
 
@@ -922,7 +915,7 @@ mod tests {
             let query = "TCTATACTGCGCGTTTATCTAGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
                          TCTATACTGCGCGTTTGGAGAAATAACTATCAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
             assert_eq!(aln.score, 200);
         }
 
@@ -933,7 +926,7 @@ mod tests {
             let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT\
                          TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), PENALTIES, &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
             assert_eq!(aln.score, 200);
         }
     }

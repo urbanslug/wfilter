@@ -18,14 +18,6 @@ fn filter(target: &fasta::FastaFile,
           cli_args: &types::CliArgs) {
     let verbosity = cli_args.verbosity_level;
 
-    // TODO: remove after fixing in wf_align because it's never used
-    let p = types::Penalties {
-        mismatch: 4,
-        matches: 0,
-        gap_open: 6,
-        gap_extend: 2,
-    };
-
     let now = Instant::now();
     for t in target.iter() {
         for q in query.iter() {
@@ -36,7 +28,7 @@ fn filter(target: &fasta::FastaFile,
                 );
             };
 
-            let aln = wflambda::wfa::wf_align(&t.seq[..], &q.seq[..], p, cli_args);
+            let aln = wflambda::wfa::wf_align(&t.seq[..], &q.seq[..], cli_args);
 
             if verbosity > 3 {
                 eprintln!("score {}", aln.score);

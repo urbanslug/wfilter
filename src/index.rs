@@ -69,12 +69,7 @@ fn compute_match_intervals(
     intervals
 }
 
-pub fn index_paf_matches(
-    p: &paf::PAF,
-) -> (
-    coitrees::COITree<types::AlignmentMetadata, u32>,
-    coitrees::COITree<types::AlignmentMetadata, u32>,
-) {
+pub fn index_paf_matches(p: &paf::PAF) -> (types::Index, types::Index) {
     let alignments: &Vec<paf::PafAlignment> = p.get_alignments();
     let mut query_intervals: Vec<types::Interval> = Vec::new();
     let mut target_intervals: Vec<types::Interval> = Vec::new();
@@ -104,15 +99,15 @@ pub fn index_paf_matches(
             // Generate coitrees::IntervalNodes
             let interval_nodes: Vec<coitrees::IntervalNode<types::AlignmentMetadata, u32>> =
                 intervals
-                    .iter()
-                    .map(|types::Interval(start, stop): &types::Interval| {
-                        let start = i32::try_from(*start)
-                            .expect("[index::index_paf] Could not convert start u32 to i32");
-                        let end = i32::try_from(*stop)
-                            .expect("[index::index_paf] Could not convert end u32 to i32");
-                        coitrees::IntervalNode::<types::AlignmentMetadata, u32>::new(start, end, ())
-                    })
-                    .collect();
+                .iter()
+                .enumerate()
+                .map(|(index, types::Interval(start, stop)): (usize, &types::Interval)| {
+                    let start = i32::try_from(*start).expect("[index::index_paf] Could not convert start u32 to i32");
+                    let end = i32::try_from(*stop).expect("[index::index_paf] Could not convert end u32 to i32");
+
+                    coitrees::IntervalNode::<types::AlignmentMetadata, u32>::new(start, end, index)
+                })
+                .collect();
 
             coitrees::COITree::new(interval_nodes)
         };

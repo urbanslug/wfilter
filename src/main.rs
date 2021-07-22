@@ -12,11 +12,24 @@ mod fasta;
 mod types;
 
 fn filter(target: &fasta::FastaFile,
-          _target_index: &types::Index,
+          target_index: &types::Index,
           query: &fasta::FastaFile,
-          _query_index: &types::Index,
+          query_index: &types::Index,
           cli_args: &types::CliArgs) {
     let verbosity = cli_args.verbosity_level;
+
+    let backtrace_lambda = |query: (i32, i32), target: (i32, i32)| -> bool {
+        let mut oq: Vec<usize> = Vec::new();
+        let y = |i: &coitrees::IntervalNode<types::AlignmentMetadata, u32>| { oq.push(i.metadata) };
+        target_index.query(target.0, target.1, y);
+        let res = target_index.query_count(target.0, target.1) > 0 || query_index.query_count(query.0, query.1) > 0;
+
+        if res {
+            println!("{} {:?}", res, oq);
+        }
+
+        res
+    };
 
     let now = Instant::now();
     for t in target.iter() {
@@ -28,7 +41,7 @@ fn filter(target: &fasta::FastaFile,
                 );
             };
 
-            let aln = wflambda::wfa::wf_align(&t.seq[..], &q.seq[..], cli_args);
+            let aln = wflambda::wfa::wf_align(&t.seq[..], &q.seq[..], cli_args, &backtrace_lambda);
 
             if verbosity > 3 {
                 eprintln!("score {}", aln.score);
@@ -74,8 +87,7 @@ fn main() {
     }
 
     // index
-    let (query_index, target_index): (types::Index, types::Index) =
-        index::index_paf_matches(&paf);
+    let (query_index, target_index): (types::Index, types::Index) = index::index_paf_matches(&paf);
 
     // ------------
     //     FASTA

@@ -454,12 +454,36 @@ mod backtrace_utils {
 
     const NULL_OFFSET: isize = -10;
 
-    pub fn backtrace_matches_check(offset: &mut isize, cigar: &mut String, num_matches: isize, k: isize) {
-        let k = compute_k(k, 5);
+    pub fn backtrace_matches_check<T>(offset: &mut isize,
+                                      cigar: &mut String,
+                                      num_matches: isize,
+                                      k: isize,
+                                      central_diagonal: usize,
+                                      backtrace_lambda: &T)
+    where
+        T: Fn((i32, i32), (i32, i32)) -> bool
+    {
+        let k = compute_k(k, central_diagonal);
+
+        {
+            let query_start = compute_v(*offset as usize, k, central_diagonal);
+            let target_start = compute_h(*offset as usize, k, central_diagonal);
+
+            let query_stop = query_start + num_matches as usize;
+            let target_stop = target_start + num_matches as usize;
+
+            let query = (query_stop as i32, query_stop as i32);
+            let target = (target_start as i32, target_stop  as i32);
+
+            backtrace_lambda(query, target);
+
+            // println!("({}, {}) ({}, {})", query_start, query_stop, target_start, target_stop);
+        }
+
 
         (0..num_matches).for_each(|_| {
-            let v = compute_v(*offset as usize, k, 5);
-            let h = compute_h(*offset as usize, k, 5);
+            let v = compute_v(*offset as usize, k, central_diagonal);
+            let h = compute_h(*offset as usize, k, central_diagonal);
 
             cigar.push('M');
             *offset -= 1;
@@ -547,7 +571,10 @@ mod backtrace_utils {
 }
 
 #[allow(unused_variables, unused_mut)]
-fn backtrace(wavefronts: &mut Wavefronts, score: usize, verbosity: u8) -> String {
+fn backtrace<T>(wavefronts: &mut Wavefronts, score: usize, verbosity: u8, backtrace_lambda: &T) -> String
+where
+    T: Fn((i32, i32), (i32, i32)) -> bool
+{
     if verbosity > 1 {
         eprintln!("[wfa::backtrace]");
     }
@@ -619,7 +646,7 @@ fn backtrace(wavefronts: &mut Wavefronts, score: usize, verbosity: u8) -> String
         if backtrace_type == Operation::MatchMismatch {
             let num_matches = offset - max_all;
             // eprintln!("num_matches={}", num_matches);
-            backtrace_matches_check(&mut offset, &mut cigar, num_matches, k);
+            backtrace_matches_check(&mut offset, &mut cigar, num_matches, k, wavefronts.central_diagonal, backtrace_lambda);
             offset = max_all;
         }
 
@@ -672,7 +699,7 @@ fn backtrace(wavefronts: &mut Wavefronts, score: usize, verbosity: u8) -> String
     if score == 0 {
         // backtrace matches check
         let num_matches = offset;
-        backtrace_matches_check(&mut offset, &mut cigar, num_matches, k);
+        backtrace_matches_check(&mut offset, &mut cigar, num_matches, k, wavefronts.central_diagonal, backtrace_lambda);
     } else {
 
         while v > 0 {
@@ -691,7 +718,10 @@ fn backtrace(wavefronts: &mut Wavefronts, score: usize, verbosity: u8) -> String
 }
 
 // TODO: remove arg penalties
-pub fn wf_align(text: &[u8], query: &[u8], cli_args: &CliArgs) -> Alignment {
+pub fn wf_align<T>(text: &[u8], query: &[u8], cli_args: &CliArgs, backtrace_lambda: &T) -> Alignment
+where
+    T: Fn((i32, i32), (i32, i32)) -> bool
+{
     let verbosity = cli_args.verbosity_level;
     let mut wavefronts = Wavefronts::new(query, text, cli_args.penalties);
 
@@ -759,7 +789,7 @@ pub fn wf_align(text: &[u8], query: &[u8], cli_args: &CliArgs) -> Alignment {
                 wavefronts.print_tsv();
             }
 
-            let cigar = backtrace(&mut wavefronts, score, verbosity);
+            let cigar = backtrace(&mut wavefronts, score, verbosity, backtrace_lambda);
             return Alignment {score, cigar};
         }
 
@@ -792,9 +822,13 @@ mod tests {
         penalties: PENALTIES,
     };
 
+    fn mock_backtrace_lambda(_query: (i32, i32), _target: (i32, i32)) -> bool {
+        true
+    }
+
     mod backtrace {
         use super::super::*;
-        use super::CLI;
+        use super::*;
 
         #[test]
         fn test_same_sequence() {
@@ -802,7 +836,7 @@ mod tests {
             let text  = "GAGATA";
             let query = "GAGATA";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mock_backtrace_lambda);
             assert_eq!(aln.score, 0);
             assert_eq!(aln.cigar, String::from("6M"));
         }
@@ -813,7 +847,7 @@ mod tests {
             let text  = "GACATA";
             let query = "GAGATA";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mock_backtrace_lambda);
             assert_eq!(aln.score, 4);
             assert_eq!(aln.cigar, String::from("2M1X3M"));
         }
@@ -823,17 +857,21 @@ mod tests {
             let text  = "GATACA";
             let query = "GAGATA";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mock_backtrace_lambda);
             assert_eq!(aln.score, 8);
             assert_eq!(aln.cigar, String::from("2M1X1M1X1M"));
         }
 
         #[test]
         fn test_long_sequences() {
-            let text  = "TCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT";
-            let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT";
+            let text  = "TCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAA\
+                         ATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGC\
+                         GTTTGGAGAAATAAAATAGT";
+            let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAA\
+                         ATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCG\
+                         CGTTGGAGAAATACAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mock_backtrace_lambda);
             assert_eq!(aln.score, 96);
             assert_eq!(aln.cigar, String::from("3M1X4M1I6M1D10M1X9M1X4M1I6M1D10M1X9M1X4M1I6M1D10M1X9M1X4M1I6M1D10M1X6M"));
             // assert_eq!(aln.cigar, String::from("3M1X4M1D7M1I9M1X9M1X4M1D7M1I9M1X9M1X4M1D7M1I9M1X9M1X4M1D7M1I9M1X6M"));
@@ -858,7 +896,7 @@ mod tests {
 
     mod align {
         use super::super::*;
-        use super::CLI;
+        use super::*;
 
         #[test]
         fn test_same_sequence() {
@@ -866,7 +904,7 @@ mod tests {
             let text  = "GAGATA";
             let query = "GAGATA";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mock_backtrace_lambda);
             assert_eq!(aln.score, 0);
         }
 
@@ -874,12 +912,12 @@ mod tests {
         fn test_paper_test_case() {
             let text  = "GAT";
             let query = "GAG";
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mock_backtrace_lambda);
             assert_eq!(aln.score, 4);
 
             let text  = "GATACA";
             let query = "GAGATA";
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mock_backtrace_lambda);
             assert_eq!(aln.score, 8);
         }
 
@@ -888,10 +926,10 @@ mod tests {
             let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGT";
             let text  = "TCTATACTGCGCGTTTGGAGAAATAAAATAGT";
 
-            let aln = wf_align(&text.as_bytes()[..10], &query.as_bytes()[..10], &CLI);
+            let aln = wf_align(&text.as_bytes()[..10], &query.as_bytes()[..10], &CLI, &mock_backtrace_lambda);
             assert_eq!(aln.score, 12);
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mock_backtrace_lambda);
             assert_eq!(aln.score, 24);
         }
 
@@ -904,7 +942,7 @@ mod tests {
                          ATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAA\
                          ATACAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mock_backtrace_lambda);
             assert_eq!(aln.score, 96);
         }
 
@@ -915,7 +953,7 @@ mod tests {
             let query = "TCTATACTGCGCGTTTATCTAGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
                          TCTATACTGCGCGTTTGGAGAAATAACTATCAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mock_backtrace_lambda);
             assert_eq!(aln.score, 200);
         }
 
@@ -926,7 +964,7 @@ mod tests {
             let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT\
                          TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mock_backtrace_lambda);
             assert_eq!(aln.score, 200);
         }
     }

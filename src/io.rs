@@ -8,3 +8,11 @@ pub fn read_file(fp: &str) -> Vec<String> {
 
     x.lines().map(|x| x.to_string()).collect::<Vec<String>>()
 }
+
+pub fn copy_filtered(fp: &str, filtered: &Vec<usize>) {
+    let data = read_file(fp);
+
+    filtered.iter().for_each(|line| {
+        println!("{}", data.get(*line).unwrap());
+    });
+}

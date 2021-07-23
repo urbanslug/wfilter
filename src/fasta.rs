@@ -22,7 +22,7 @@ impl Fasta {
         }).collect()
     }
 
-    // TODO: handle the header
+    #[allow(dead_code)]
     pub fn from_str(data: &str) -> FastaFile {
         let bytestring = &data.as_bytes()[..];
         let reader = Reader::new(bytestring);

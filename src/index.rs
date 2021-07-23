@@ -12,6 +12,7 @@ fn compute_match_intervals(
     start: u32,
     _stop: u32,
     cigar: &str,
+    index: usize
 ) -> Vec<types::Interval> {
     let mut intervals: Vec<types::Interval> = Vec::new();
     let mut buffer = String::new();
@@ -22,7 +23,7 @@ fn compute_match_intervals(
             'M' | '=' => {
                 // TODO: consider the ambiguity of M being match/mismatch
                 let m: u32 = u32::from_str(&buffer[..]).unwrap();
-                intervals.push(types::Interval(cursor, cursor + m));
+                intervals.push(types::Interval(cursor, cursor + m, index));
                 cursor += m;
                 buffer.clear();
             }
@@ -74,25 +75,30 @@ pub fn index_paf_matches(p: &paf::PAF) -> (types::Index, types::Index) {
     let mut query_intervals: Vec<types::Interval> = Vec::new();
     let mut target_intervals: Vec<types::Interval> = Vec::new();
 
-    alignments.iter().for_each(|a: &paf::PafAlignment| {
-        let mut t = compute_match_intervals(
-            types::SequenceType::Target,
-            a.strand,
-            a.target_start,
-            a.target_end,
-            &a.cigar[..],
-        );
-        let mut q = compute_match_intervals(
-            types::SequenceType::Query,
-            a.strand,
-            a.query_start,
-            a.query_end,
-            &a.cigar[..],
-        );
+    alignments
+        .iter()
+        .enumerate()
+        .for_each(|(index, a): (usize, &paf::PafAlignment)| {
+            let mut t = compute_match_intervals(
+                types::SequenceType::Target,
+                a.strand,
+                a.target_start,
+                a.target_end,
+                &a.cigar[..],
+                index
+            );
+            let mut q = compute_match_intervals(
+                types::SequenceType::Query,
+                a.strand,
+                a.query_start,
+                a.query_end,
+                &a.cigar[..],
+                index
+            );
 
-        query_intervals.append(&mut q);
-        target_intervals.append(&mut t);
-    });
+            query_intervals.append(&mut q);
+            target_intervals.append(&mut t);
+        });
 
     let gen_coitree =
         |intervals: Vec<types::Interval>| -> coitrees::COITree<types::AlignmentMetadata, u32> {
@@ -100,12 +106,11 @@ pub fn index_paf_matches(p: &paf::PAF) -> (types::Index, types::Index) {
             let interval_nodes: Vec<coitrees::IntervalNode<types::AlignmentMetadata, u32>> =
                 intervals
                 .iter()
-                .enumerate()
-                .map(|(index, types::Interval(start, stop)): (usize, &types::Interval)| {
+                .map(|types::Interval(start, stop, index): &types::Interval| {
                     let start = i32::try_from(*start).expect("[index::index_paf] Could not convert start u32 to i32");
                     let end = i32::try_from(*stop).expect("[index::index_paf] Could not convert end u32 to i32");
 
-                    coitrees::IntervalNode::<types::AlignmentMetadata, u32>::new(start, end, index)
+                    coitrees::IntervalNode::<types::AlignmentMetadata, u32>::new(start, end, *index)
                 })
                 .collect();
 

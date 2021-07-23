@@ -45,7 +45,7 @@ impl CliArgs {
 }
 
 #[derive(PartialEq, Debug)]
-pub struct Interval(pub u32, pub u32);
+pub struct Interval(pub u32, pub u32, pub usize);
 
 // dummy type to hold metadata
 pub type AlignmentMetadata = usize;

@@ -1,5 +1,6 @@
 use coitrees;
 use std::time::Instant;
+use std::collections::HashSet;
 
 // local
 mod wflambda;
@@ -15,20 +16,18 @@ fn filter(target: &fasta::FastaFile,
           target_index: &types::Index,
           query: &fasta::FastaFile,
           query_index: &types::Index,
-          cli_args: &types::CliArgs) {
+          cli_args: &types::CliArgs) -> HashSet<usize> {
     let verbosity = cli_args.verbosity_level;
 
-    let backtrace_lambda = |query: (i32, i32), target: (i32, i32)| -> bool {
-        let mut oq: Vec<usize> = Vec::new();
-        let y = |i: &coitrees::IntervalNode<types::AlignmentMetadata, u32>| { oq.push(i.metadata) };
+    let mut query_lines: HashSet<usize> = HashSet::new();
+    let mut target_lines: HashSet<usize> = HashSet::new();
+
+    let mut backtrace_lambda = |query: (i32, i32), target: (i32, i32)| {
+        let y = |i: &coitrees::IntervalNode<types::AlignmentMetadata, u32>| { target_lines.insert(i.metadata); };
+        let z = |i: &coitrees::IntervalNode<types::AlignmentMetadata, u32>| { query_lines.insert(i.metadata); };
+
         target_index.query(target.0, target.1, y);
-        let res = target_index.query_count(target.0, target.1) > 0 || query_index.query_count(query.0, query.1) > 0;
-
-        if res {
-            println!("{} {:?}", res, oq);
-        }
-
-        res
+        query_index.query(query.0, query.1, z);
     };
 
     let now = Instant::now();
@@ -41,7 +40,7 @@ fn filter(target: &fasta::FastaFile,
                 );
             };
 
-            let aln = wflambda::wfa::wf_align(&t.seq[..], &q.seq[..], cli_args, &backtrace_lambda);
+            let aln = wflambda::wfa::wf_align(&t.seq[..], &q.seq[..], cli_args, &mut backtrace_lambda);
 
             if verbosity > 3 {
                 eprintln!("score {}", aln.score);
@@ -50,12 +49,17 @@ fn filter(target: &fasta::FastaFile,
         }
     }
 
+    let mut filtered = target_lines;
+    filtered.extend(&query_lines);
+
     if verbosity > 0 {
         eprintln!(
             "\t[wfilter::main::align] finished all alignments. Time taken {} seconds",
             now.elapsed().as_millis() as f64 / 1000.0
         )
     };
+
+    filtered
 }
 
 fn main() {
@@ -105,7 +109,7 @@ fn main() {
             "[wfilter::main] done parsing target. Time taken {} seconds",
             now.elapsed().as_millis() as f64 / 1000.0
         );
-        eprintln!("Number of sequences in target {}", target.len());
+        eprintln!("[wfilter::main] Number of sequences in the target {}", target.len());
     }
 
     // Parse query fasta
@@ -119,14 +123,29 @@ fn main() {
             "[wfilter::main] done parsing query. Time taken {} seconds",
             now.elapsed().as_millis() as f64 / 1000.0
         );
-        eprintln!("Number of sequences in query {}", query.len());
+        eprintln!("[wfilter::main] Number of sequences in the query {}", query.len());
     }
 
+    // ------------
+    //     Filter
+    // ------------
+
+    let now = Instant::now();
     if verbosity > 0 {
-        eprintln!("[wfilter::main] filter");
+        eprintln!("[wfilter::main] filtering");
     }
 
-    filter(&target, &target_index, &query, &query_index, &args);
+    let lines: HashSet<usize> = filter(&target, &target_index, &query, &query_index, &args);
+    let mut lines = lines.into_iter().collect::<Vec<usize>>();
+    lines.sort();
+
+    io::copy_filtered(paf_file_path, &lines);
+    if verbosity > 0 {
+        eprintln!(
+            "[wfilter::main] done filtering. Time taken {} seconds",
+            now.elapsed().as_millis() as f64 / 1000.0
+        );
+    }
 
 }
 

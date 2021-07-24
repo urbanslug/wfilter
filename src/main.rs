@@ -5,6 +5,7 @@ use std::collections::HashSet;
 // local
 mod wflambda;
 
+mod utils;
 mod cli;
 mod index;
 mod io;
@@ -34,10 +35,11 @@ fn filter(target: &fasta::FastaFile,
     for t in target.iter() {
         for q in query.iter() {
             if verbosity > 1 {
-                eprintln!("\t[wfilter::main::align] Aligning {} and {}",
+                eprintln!("[wfilter::main::filter] Aligning {} length: {} bases and {} length: {} bases",
                           std::str::from_utf8(&t.header[..]).unwrap(),
-                          std::str::from_utf8(&q.header[..]).unwrap()
-                );
+                          utils::pretty_print_int(t.seq.len() as isize),
+                          std::str::from_utf8(&q.header[..]).unwrap(),
+                          utils::pretty_print_int(q.seq.len() as isize));
             };
 
             let aln = wflambda::wfa::wf_align(&t.seq[..], &q.seq[..], cli_args, &mut backtrace_lambda);

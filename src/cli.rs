@@ -16,8 +16,8 @@ pub fn start() -> types::CliArgs {
         .about(DESCRIPTION)
         .arg(
             Arg::with_name("input_paf")
-                .short("f")
-                .long("input-paf")
+                .short("p")
+                .long("paf")
                 .value_name("FILE")
                 .help("Path to input PAF file")
                 .takes_value(true),
@@ -25,7 +25,7 @@ pub fn start() -> types::CliArgs {
         .arg(
             Arg::with_name("target_fasta")
                 .short("t")
-                .long("target-fasta")
+                .long("target")
                 .value_name("FILE")
                 .help("Path to input target fasta file")
                 .takes_value(true),
@@ -33,7 +33,7 @@ pub fn start() -> types::CliArgs {
         .arg(
             Arg::with_name("query_fasta")
                 .short("q")
-                .long("query-fasta")
+                .long("query")
                 .value_name("FILE")
                 .help("Path to input target fasta file")
                 .takes_value(true),

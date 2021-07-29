@@ -69,7 +69,6 @@ fn main() {
     //    CLI
     // ------------
 
-
     // Parse CLI args
     let args: types::CliArgs = cli::start();
     let paf_file_path: &str = &args.input_paf[..];
@@ -134,7 +133,7 @@ fn main() {
 
     let now = Instant::now();
     if verbosity > 0 {
-        eprintln!("[wfilter::main] filtering");
+        eprintln!("[wfilter::main] Filtering");
     }
 
     let lines: HashSet<usize> = filter(&target, &target_index, &query, &query_index, &args);
@@ -184,7 +183,16 @@ mod tests {
             gap_extend: 2,
         };
 
-        let args = CliArgs::new(2, "", "", "", Some(penalties));
+        let args = CliArgs {
+            verbosity_level: 0,
+            input_paf: String::new(),
+            target_fasta: String::new(),
+            query_fasta: String::new(),
+            penalties: penalties,
+            adapt: false,
+        };
+
+
         let text = Fasta::from_str(TEXT);
         let query = Fasta::from_str(QUERY);
 

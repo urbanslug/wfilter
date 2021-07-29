@@ -465,6 +465,7 @@ fn wflambda<T, U>(
 mod tests {
     use super::*;
 
+    #[ignore]
     #[test]
     fn test_wfilter() {
         // Buffers

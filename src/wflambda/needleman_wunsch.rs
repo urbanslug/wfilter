@@ -252,6 +252,7 @@ mod tests {
                                    AGTTCTATACTGCGCGTTTGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAA\
                                    AATAGT";
 
+    #[ignore]
     #[test]
     fn test_align_equal_length() {
         let text_window = &TEXT[..12];
@@ -271,6 +272,7 @@ mod tests {
         assert_eq!(aln.get_score(), 92);
     }
 
+    #[ignore]
     #[test]
     fn test_align_varying_length() {
         let text_window = &TEXT[..14];

@@ -15,6 +15,7 @@ pub struct CliArgs {
     pub target_fasta: String,
     pub query_fasta: String,
     pub penalties: Penalties,
+    pub adapt: bool,
 }
 
 impl CliArgs {
@@ -23,7 +24,8 @@ impl CliArgs {
                paf_filepath: &str,
                target_filepath: &str,
                query_filepath: &str,
-               penalties: Option<Penalties>) -> Self {
+               penalties: Option<Penalties>,
+               adapt: bool) -> Self {
         let penalties = match penalties {
             Some(p) => p,
             _ => Penalties {
@@ -40,6 +42,7 @@ impl CliArgs {
             target_fasta: String::from(target_filepath),
             query_fasta: String::from(query_filepath),
             penalties,
+            adapt
         }
     }
 }

@@ -475,10 +475,11 @@ fn reduce(wavefronts: &mut Wavefronts, score: usize) {
     let mut min_distance: usize = max(qlen, tlen);
 
     for k in lo..hi {
-        let k = k as usize;
+        let k: usize = compute_k(k, a_k);
         let offset: usize = *m_wavefront.offsets.get(k).unwrap();
-        let left_v = qlen - (offset - k);
-        let left_h = tlen - offset;
+
+        let left_v: usize = if offset >= k && qlen >= (offset - k)  { qlen - (offset - k) } else { 0 } ;
+        let left_h: usize = if tlen >= offset { tlen - offset } else { 0 };
 
         let distance = std::cmp::max(left_v, left_h);
         min_distance = std::cmp::max(min_distance, distance);
@@ -556,7 +557,6 @@ where
 }
 
 fn wf_expand(wavefronts: &mut Wavefronts, score: usize) -> (isize, isize) {
-
     let s: isize = score as isize;
 
     let x: isize = wavefronts.penalties.mismatch as isize;
@@ -942,6 +942,15 @@ mod tests {
         adapt: false,
     };
 
+    static CLI_ADAPT: CliArgs = CliArgs {
+        verbosity_level: 0,
+        input_paf: String::new(),
+        target_fasta: String::new(),
+        query_fasta: String::new(),
+        penalties: PENALTIES,
+        adapt: true,
+    };
+
     fn mock_backtrace_lambda(_query: (i32, i32), _target: (i32, i32)) {
     }
 
@@ -1048,7 +1057,7 @@ mod tests {
             let aln = wf_align(&text.as_bytes()[..10], &query.as_bytes()[..10], &CLI, &mut mock_backtrace_lambda);
             assert_eq!(aln.score, 12);
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mut mock_backtrace_lambda);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI_ADAPT, &mut mock_backtrace_lambda);
             assert_eq!(aln.score, 24);
         }
 
@@ -1061,7 +1070,7 @@ mod tests {
                          ATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAA\
                          ATACAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mut mock_backtrace_lambda);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI_ADAPT, &mut mock_backtrace_lambda);
             assert_eq!(aln.score, 96);
         }
 
@@ -1072,7 +1081,7 @@ mod tests {
             let query = "TCTATACTGCGCGTTTATCTAGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
                          TCTATACTGCGCGTTTGGAGAAATAACTATCAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mut mock_backtrace_lambda);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI_ADAPT, &mut mock_backtrace_lambda);
             assert_eq!(aln.score, 200);
         }
 
@@ -1083,7 +1092,7 @@ mod tests {
             let query = "TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT\
                          TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT";
 
-            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI, &mut mock_backtrace_lambda);
+            let aln = wf_align(text.as_bytes(), query.as_bytes(), &CLI_ADAPT, &mut mock_backtrace_lambda);
 
             assert_eq!(aln.score, 200);
         }

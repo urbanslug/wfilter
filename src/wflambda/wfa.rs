@@ -162,45 +162,51 @@ pub mod types {
         }
     }
 
-    pub type OptWf = Option<Wavefront>;
     pub struct WavefrontSet {
-        pub m: Wavefront,
-        pub d: Wavefront,
-        pub i: Wavefront,
+        pub m: Option<Wavefront>,
+        pub d: Option<Wavefront>,
+        pub i: Option<Wavefront>,
     }
 
     impl WavefrontSet {
         pub fn new(offset_len: usize) -> Self {
-            // let new_wavefront = Some(Wavefront::new(offset_len));
             Self {
-                m: Wavefront::new(offset_len),
-                d: Wavefront::new(offset_len),
-                i: Wavefront::new(offset_len),
+                m: Some(Wavefront::new(offset_len)),
+                d: Some(Wavefront::new(offset_len)),
+                i: Some(Wavefront::new(offset_len)),
             }
         }
 
-        pub fn iwavefront(&self) -> &Wavefront {
-            &self.i
+        pub fn iwavefront(&self) -> Option<&Wavefront> {
+            self.i.as_ref()
         }
 
-        pub fn mwavefront(&self) -> &Wavefront {
-            &self.m
+        pub fn mwavefront(&self) -> Option<&Wavefront> {
+            self.m.as_ref()
         }
 
-        pub fn dwavefront(&self) -> &Wavefront {
-            &self.d
+        pub fn dwavefront(&self) -> Option<&Wavefront> {
+            self.d.as_ref()
         }
 
-        pub fn iwavefront_mut(&mut self) -> &mut Wavefront {
-            &mut self.i
+        pub fn iwavefront_mut(&mut self) -> Option<&mut Wavefront> {
+            self.i.as_mut()
         }
 
-        pub fn dwavefront_mut(&mut self) -> &mut Wavefront {
-            &mut self.d
+        pub fn dwavefront_mut(&mut self) -> Option<&mut Wavefront> {
+            self.d.as_mut()
         }
 
-        pub fn mwavefront_mut(&mut self) -> &mut Wavefront {
-            &mut self.m
+        pub fn mwavefront_mut(&mut self) -> Option<&mut Wavefront> {
+            self.m.as_mut()
+        }
+
+        pub fn fields(&self) -> (Option<&Wavefront>, Option<&Wavefront>, Option<&Wavefront>) {
+            (self.m.as_ref(), self.i.as_ref(), self.d.as_ref())
+        }
+
+        pub fn fields_mut(&mut self) -> (Option<&mut Wavefront>, Option<&mut Wavefront>, Option<&mut Wavefront>) {
+            (self.m.as_mut(), self.i.as_mut(), self.d.as_mut())
         }
     }
 
@@ -367,7 +373,7 @@ mod backtrace_utils {
     pub fn backtrace_deletion_extend_offset(wavefronts: &Wavefronts, score: isize, k: isize) -> isize {
         if score < 0 { return NULL_OFFSET }
 
-        let d = wavefronts.get_wavefront(score as usize).unwrap().dwavefront();
+        let d = wavefronts.get_wavefront(score as usize).unwrap().dwavefront().unwrap();
         if d.lo <= k+1 && k+1 <= d.hi {
             let k = compute_k(k, wavefronts.central_diagonal);
             return d.offsets[k + 1] as isize
@@ -379,7 +385,7 @@ mod backtrace_utils {
     pub fn backtrace_deletion_open_offset(wavefronts: &Wavefronts, score: isize, k: isize) -> isize {
         if score < 0 { return NULL_OFFSET }
 
-        let m = wavefronts.get_wavefront(score as usize).unwrap().mwavefront();
+        let m = wavefronts.get_wavefront(score as usize).unwrap().mwavefront().unwrap();
 
         if m.lo <= k+1 && k+1 <= m.hi {
             let k = compute_k(k, wavefronts.central_diagonal);
@@ -393,7 +399,7 @@ mod backtrace_utils {
         if score < 0 { return NULL_OFFSET }
 
 
-        let i = wavefronts.get_wavefront(score as usize).unwrap().iwavefront();
+        let i = wavefronts.get_wavefront(score as usize).unwrap().iwavefront().unwrap();
 
         if i.lo <= k-1 && k-1 <= i.hi {
             let k = compute_k(k, wavefronts.central_diagonal);
@@ -406,7 +412,7 @@ mod backtrace_utils {
     pub fn backtrace_insertion_open_offset(wavefronts: &Wavefronts, score: isize, k: isize) -> isize {
         if score < 0 { return NULL_OFFSET }
 
-        let m = wavefronts.get_wavefront(score as usize).unwrap().mwavefront();
+        let m = wavefronts.get_wavefront(score as usize).unwrap().mwavefront().unwrap();
 
         if m.lo <= k-1 && k-1 <= m.hi {
             let k = compute_k(k, wavefronts.central_diagonal);
@@ -419,7 +425,7 @@ mod backtrace_utils {
     pub fn backtrace_insertion_mismatch_offset(wavefronts: &Wavefronts, score: isize, k: isize) -> isize {
         if score < 0 { return NULL_OFFSET }
 
-        let m = wavefronts.get_wavefront(score as usize).unwrap().mwavefront();
+        let m = wavefronts.get_wavefront(score as usize).unwrap().mwavefront().unwrap();
 
         if m.lo <= k && k <= m.hi {
             let k = compute_k(k, wavefronts.central_diagonal);
@@ -432,7 +438,7 @@ mod backtrace_utils {
     pub fn backtrace_mismatch_offset(wavefronts: &Wavefronts, score: isize, k: isize) -> isize {
         if score < 0 { return NULL_OFFSET }
 
-        let m = wavefronts.get_wavefront(score as usize).unwrap().mwavefront();
+        let m = wavefronts.get_wavefront(score as usize).unwrap().mwavefront().unwrap();
 
         if m.lo <= k && k <= m.hi {
             // eprintln!("\t[backtrace_mismatch_offset] score={} k={} offset={}", score, k, m.offsets[k as usize]);
@@ -443,6 +449,61 @@ mod backtrace_utils {
         }
     }
 }
+
+fn reduce(wavefronts: &mut Wavefronts, score: usize) {
+    let qlen = wavefronts.query.len();
+    let tlen = wavefronts.text.len();
+
+    let a_k = wavefronts.central_diagonal;
+
+    let wavefront: &mut WavefrontSet = wavefronts.get_wavefront_mut(score).unwrap();
+
+    // fetch the m wavefront
+    let m_wavefront: Option<&Wavefront> = wavefront.m.as_ref();
+    if m_wavefront.is_none() {
+        return
+    }
+    let m_wavefront: &Wavefront = m_wavefront.unwrap();
+    let hi = m_wavefront.hi;
+    let lo = m_wavefront.lo;
+
+    if (hi - lo+1) < MIN_WAVEFRONT_LENGTH {
+        return
+    }
+
+    // Find minimum distance to (n,m)
+    let mut min_distance: usize = max(qlen, tlen);
+
+    for k in lo..hi {
+        let k = k as usize;
+        let offset: usize = *m_wavefront.offsets.get(k).unwrap();
+        let left_v = qlen - (offset - k);
+        let left_h = tlen - offset;
+
+        let distance = std::cmp::max(left_v, left_h);
+        min_distance = std::cmp::max(min_distance, distance);
+    }
+
+    // Reduce WF from the bottom
+    let i_wavefront: Option<&mut Wavefront> = wavefront.i.as_mut();
+    if i_wavefront.is_some() {
+        let i_wavefront_unwrapped: &mut Wavefront = i_wavefront.unwrap();
+        if m_wavefront.lo > i_wavefront_unwrapped.lo { i_wavefront_unwrapped.lo = m_wavefront.lo }
+        if m_wavefront.hi < i_wavefront_unwrapped.hi { i_wavefront_unwrapped.hi = m_wavefront.hi }
+        if i_wavefront_unwrapped.lo > i_wavefront_unwrapped.hi { wavefront.i = None };
+
+    }
+
+    // Reduce WF from the top
+    let d_wavefront: Option<&mut Wavefront> = wavefront.i.as_mut();
+    if d_wavefront.is_some() {
+        let d_wavefront_unwrapped: &mut Wavefront = d_wavefront.unwrap();
+        if m_wavefront.lo > d_wavefront_unwrapped.lo { d_wavefront_unwrapped.lo = m_wavefront.lo }
+        if m_wavefront.hi < d_wavefront_unwrapped.hi { d_wavefront_unwrapped.hi = m_wavefront.hi }
+        if d_wavefront_unwrapped.lo > d_wavefront_unwrapped.hi { wavefront.d = None };
+    }
+}
+
 
 fn wf_extend<T>(mwavefront: &mut Wavefront,
                 match_lambda: T,
@@ -502,40 +563,41 @@ fn wf_expand(wavefronts: &mut Wavefronts, score: usize) -> (isize, isize) {
     let o: isize = wavefronts.penalties.gap_open as isize;
     let e: isize = wavefronts.penalties.gap_extend as isize;
 
-    let m_hi =  wavefronts.get_wavefront(score).unwrap().mwavefront().hi;
-    let i_hi =  wavefronts.get_wavefront(score).unwrap().iwavefront().hi;
-    let d_hi =  wavefronts.get_wavefront(score).unwrap().dwavefront().hi;
+    let m_hi =  wavefronts.get_wavefront(score).unwrap().mwavefront().unwrap().hi;
+    let i_hi =  wavefronts.get_wavefront(score).unwrap().iwavefront().unwrap().hi;
+    let d_hi =  wavefronts.get_wavefront(score).unwrap().dwavefront().unwrap().hi;
 
-    let m_lo =  wavefronts.get_wavefront(score).unwrap().mwavefront().lo;
-    let d_lo =  wavefronts.get_wavefront(score).unwrap().dwavefront().lo;
-    let i_lo =  wavefronts.get_wavefront(score).unwrap().iwavefront().lo;
+    let m_lo =  wavefronts.get_wavefront(score).unwrap().mwavefront().unwrap().lo;
+    let d_lo =  wavefronts.get_wavefront(score).unwrap().dwavefront().unwrap().lo;
+    let i_lo =  wavefronts.get_wavefront(score).unwrap().iwavefront().unwrap().lo;
 
     let hi = vec![
-        if s-x   < 0 { m_hi } else { wavefronts.get_wavefront((s-x) as usize).unwrap().mwavefront().hi },
-        if s-o-e < 0 { m_hi } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront().hi },
-        if s-e   < 0 { i_hi } else { wavefronts.get_wavefront((s-e) as usize).unwrap().iwavefront().hi },
-        if s-e   < 0 { d_hi } else { wavefronts.get_wavefront((s-e) as usize).unwrap().dwavefront().hi},
+        if s-x   < 0 { m_hi } else { wavefronts.get_wavefront((s-x) as usize).unwrap().mwavefront().unwrap().hi },
+        if s-o-e < 0 { m_hi } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront().unwrap().hi },
+        if s-e   < 0 { i_hi } else { wavefronts.get_wavefront((s-e) as usize).unwrap().iwavefront().unwrap().hi },
+        if s-e   < 0 { d_hi } else { wavefronts.get_wavefront((s-e) as usize).unwrap().dwavefront().unwrap().hi},
     ].iter().max().unwrap() + 1;
 
     let lo = vec![
-        if s-x   < 0 { m_lo } else { wavefronts.get_wavefront((s-x) as usize).unwrap().mwavefront().lo },
-        if s-o-e < 0 { m_lo } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront().lo },
-        if s-e   < 0 { i_lo } else { wavefronts.get_wavefront((s-e) as usize).unwrap().iwavefront().lo },
-        if s-e   < 0 { d_lo } else { wavefronts.get_wavefront((s-e) as usize).unwrap().dwavefront().lo},
+        if s-x   < 0 { m_lo } else { wavefronts.get_wavefront((s-x) as usize).unwrap().mwavefront().unwrap().lo },
+        if s-o-e < 0 { m_lo } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront().unwrap().lo },
+        if s-e   < 0 { i_lo } else { wavefronts.get_wavefront((s-e) as usize).unwrap().iwavefront().unwrap().lo },
+        if s-e   < 0 { d_lo } else { wavefronts.get_wavefront((s-e) as usize).unwrap().dwavefront().unwrap().lo},
     ].iter().min().unwrap() - 1;
 
-    wavefronts.get_wavefront_mut(score).unwrap().mwavefront_mut().hi = hi;
-    wavefronts.get_wavefront_mut(score).unwrap().dwavefront_mut().hi = hi;
-    wavefronts.get_wavefront_mut(score).unwrap().iwavefront_mut().hi = hi;
+    wavefronts.get_wavefront_mut(score).unwrap().mwavefront_mut().unwrap().hi = hi;
+    wavefronts.get_wavefront_mut(score).unwrap().dwavefront_mut().unwrap().hi = hi;
+    wavefronts.get_wavefront_mut(score).unwrap().iwavefront_mut().unwrap().hi = hi;
 
-    wavefronts.get_wavefront_mut(score).unwrap().iwavefront_mut().lo = lo;
-    wavefronts.get_wavefront_mut(score).unwrap().mwavefront_mut().lo = lo;
-    wavefronts.get_wavefront_mut(score).unwrap().dwavefront_mut().lo = lo;
+    wavefronts.get_wavefront_mut(score).unwrap().iwavefront_mut().unwrap().lo = lo;
+    wavefronts.get_wavefront_mut(score).unwrap().mwavefront_mut().unwrap().lo = lo;
+    wavefronts.get_wavefront_mut(score).unwrap().dwavefront_mut().unwrap().lo = lo;
 
     (lo, hi)
 }
 
-fn wf_next(wavefronts: &mut Wavefronts, score: usize, verbosity: u8) {
+fn wf_next(wavefronts: &mut Wavefronts, score: usize, cli_args: &CliArgs) {
+    let verbosity = cli_args.verbosity_level;
     if verbosity > 2 {
         eprintln!("[wf_next] Computing wavefront for score {}", score);
     }
@@ -571,37 +633,41 @@ fn wf_next(wavefronts: &mut Wavefronts, score: usize, verbosity: u8) {
         let k: usize = compute_k(k, wavefronts.central_diagonal);
 
         let imax = *vec![
-            if s-o-e < 0 || k <= 0 || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront().offsets[(k-1) as usize] as isize },
-            if s-e < 0   || k <= 0 || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-e) as usize).unwrap().iwavefront().offsets[(k-1) as usize] as isize },
+            if s-o-e < 0 || k <= 0 || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront().unwrap().offsets[(k-1) as usize] as isize },
+            if s-e < 0   || k <= 0 || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-e) as usize).unwrap().iwavefront().unwrap().offsets[(k-1) as usize] as isize },
         ].iter().max().unwrap();
 
         if k < wavefronts.diagonals {
-            wavefronts.get_wavefront_mut(score).unwrap().iwavefront_mut().offsets[k] = imax as usize;
+            wavefronts.get_wavefront_mut(score).unwrap().iwavefront_mut().unwrap().offsets[k] = imax as usize;
         }
 
         let dmax = *vec![
-            if s-o-e < 0 || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront().offsets[k+1] as isize },
-            if s-e < 0   || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-e) as usize).unwrap().dwavefront().offsets[k+1] as isize},
+            if s-o-e < 0 || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-o-e) as usize).unwrap().mwavefront().unwrap().offsets[k+1] as isize },
+            if s-e < 0   || k+1 >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront((s-e) as usize).unwrap().dwavefront().unwrap().offsets[k+1] as isize},
         ].iter().max().unwrap();
 
         if k < wavefronts.diagonals  {
-            wavefronts.get_wavefront_mut(score).unwrap().dwavefront_mut().offsets[k] = dmax as usize;
+            wavefronts.get_wavefront_mut(score).unwrap().dwavefront_mut().unwrap().offsets[k] = dmax as usize;
         }
 
         let mmax = *vec![
-            if s-x < 0 || k >= wavefronts.diagonals { 0 } else { (wavefronts.get_wavefront((s-x) as usize).unwrap().mwavefront().offsets[k] + 1 as usize) as isize},
-            if            k >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront(score).unwrap().iwavefront().offsets[k] as isize },
-            if            k >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront(score).unwrap().dwavefront().offsets[k] as isize },
+            if s-x < 0 || k >= wavefronts.diagonals { 0 } else { (wavefronts.get_wavefront((s-x) as usize).unwrap().mwavefront().unwrap().offsets[k] + 1 as usize) as isize},
+            if            k >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront(score).unwrap().iwavefront().unwrap().offsets[k] as isize },
+            if            k >= wavefronts.diagonals { 0 } else { wavefronts.get_wavefront(score).unwrap().dwavefront().unwrap().offsets[k] as isize },
         ].iter().max().unwrap();
 
         if k < wavefronts.diagonals {
-            wavefronts.get_wavefront_mut(score).unwrap().mwavefront_mut().offsets[k] = mmax as usize;
+            wavefronts.get_wavefront_mut(score).unwrap().mwavefront_mut().unwrap().offsets[k] = mmax as usize;
         }
 
         if verbosity > 3 {
             let k_prime = k as isize - wavefronts.central_diagonal as isize;
             eprintln!("\t{}\t{}\t{}\t{}\t{}", k_prime, k, mmax, imax, dmax);
         }
+    }
+
+    if cli_args.adapt {
+        reduce(wavefronts, score);
     }
 }
 
@@ -630,7 +696,7 @@ where
     let wf = wavefronts.get_wavefront(score).unwrap();
 
     let mut score: isize = score as isize;
-    let mut offset: isize = wf.mwavefront().offsets[a_k] as isize;
+    let mut offset: isize = wf.mwavefront().unwrap().offsets[a_k] as isize;
 
     let mut k = compute_kk(a_k, a_k);
 
@@ -765,56 +831,6 @@ where
     cigar
 }
 
-
-fn reduce(wavefronts: &mut Wavefronts, score: usize) {
-    let qlen = wavefronts.query.len();
-    let tlen = wavefronts.text.len();
-
-    let a_k = wavefronts.central_diagonal;
-
-    let wavefront: &mut WavefrontSet = wavefronts.get_wavefront_mut(score).unwrap();
-
-    // fetch the m wavefront
-    let m_wavefront: &Wavefront = &wavefront.m;
-    let i_wavefront: &mut Wavefront = &mut wavefront.i;
-    let d_wavefront: &mut Wavefront = &mut wavefront.d;
-
-    let hi = m_wavefront.hi;
-    let lo = m_wavefront.lo;
-
-    if (hi - lo+1) < MIN_WAVEFRONT_LENGTH {
-        return
-    }
-
-    // Find minimum distance to (n,m)
-    let mut min_distance: usize = max(qlen, tlen);
-
-    for k in lo..hi {
-        let k = k as usize;
-        let offset: usize = *m_wavefront.offsets.get(k).unwrap();
-        let left_v = qlen - (offset - k);
-        let left_h = tlen - offset;
-
-        let distance = std::cmp::max(left_v, left_h);
-        min_distance = std::cmp::max(min_distance, distance);
-    }
-
-    // Reduce WF from the bottom
-    // TODO: what if null?
-    
-    if m_wavefront.lo > i_wavefront.lo { i_wavefront.lo = m_wavefront.lo }
-    if m_wavefront.hi < i_wavefront.hi { i_wavefront.hi = m_wavefront.hi }
-    // if (iwavefront.lo > iwavefront.hi) iwavefront.null = true;
-
-
-    // Reduce WF from the top
-    // TODO: what if null?
-    
-    if m_wavefront.lo > d_wavefront.lo { d_wavefront.lo = m_wavefront.lo }
-    if m_wavefront.hi < d_wavefront.hi { d_wavefront.hi = m_wavefront.hi }
-    // if (iwavefront.lo > iwavefront.hi) iwavefront.null = true;
-}
-
 // TODO: remove arg penalties
 pub fn wf_align<T>(text: &[u8],
                    query: &[u8],
@@ -845,7 +861,7 @@ where
     let mut progress_value: u64 = 0;
 
     let mut exit_condition = |wavefronts: &Wavefronts, score: usize| {
-        let current_offset = *wavefronts.get_wavefront(score).unwrap().mwavefront().offsets.get(a_k).unwrap();
+        let current_offset = *wavefronts.get_wavefront(score).unwrap().mwavefront().unwrap().offsets.get(a_k).unwrap();
         if verbosity > 1 {
             // handle progress bar
             let delta = current_offset as u64 - progress_value;
@@ -868,7 +884,7 @@ where
     loop {
         let dp_matrix = &mut wavefronts.dp_matrix;
         let k = wavefronts.wavefronts.get_mut(score).and_then(|x| (**x).as_mut());
-        let m_s = k.unwrap().mwavefront_mut();
+        let m_s = k.unwrap().mwavefront_mut().unwrap();
         wf_extend(m_s, match_lambda, a_k, score, dp_matrix, verbosity);
 
         if exit_condition(&wavefronts, score) {
@@ -901,7 +917,7 @@ where
 
         score += 1;
 
-        wf_next(&mut wavefronts, score, verbosity);
+        wf_next(&mut wavefronts, score, cli_args);
     }
 }
 

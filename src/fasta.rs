@@ -3,7 +3,7 @@ use std::io::Read;
 
 pub struct Fasta {
     pub header: Vec<u8>,
-    pub seq: Vec<u8>
+    pub seq: Vec<u8>,
 }
 
 pub type FastaFile = Vec<Fasta>;
@@ -11,15 +11,19 @@ pub type FastaFile = Vec<Fasta>;
 // TODO: have the from methods return Fasta and not FastaFile
 impl Fasta {
     fn parse_fasta<R>(reader: Reader<R>) -> FastaFile
-    where R: Read
+    where
+        R: Read,
     {
-        reader.into_records().map(|r| {
-            let r = r.unwrap();
-            Fasta {
-                header: r.head.clone(),
-                seq: r.seq.clone()
-            }
-        }).collect()
+        reader
+            .into_records()
+            .map(|r| {
+                let r = r.unwrap();
+                Fasta {
+                    header: r.head.clone(),
+                    seq: r.seq.clone(),
+                }
+            })
+            .collect()
     }
 
     #[allow(dead_code)]
@@ -63,20 +67,26 @@ mod tests {
 
         let foo = |f: FastaFile| -> Vec<String> {
             f.into_iter()
-                .map(|x: Fasta| {
-                    String::from_utf8(x.seq).unwrap()
-                })
+                .map(|x: Fasta| String::from_utf8(x.seq).unwrap())
                 .collect()
         };
 
-        assert_eq!(vec!["TCTATACTGCGCGTTTATCTAGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
-                         TCTATACTGCGCGTTTGGAGAAATAACTATCAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT"],
-                   foo(with_newlines));
-        assert_eq!(vec!["TCTATACTGCGCGTTTATCTAGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
+        assert_eq!(
+            vec![
+                "TCTATACTGCGCGTTTATCTAGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
+                         TCTATACTGCGCGTTTGGAGAAATAACTATCAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT"
+            ],
+            foo(with_newlines)
+        );
+        assert_eq!(
+            vec![
+                "TCTATACTGCGCGTTTATCTAGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
                          TCTATACTGCGCGTTTGGAGAAATAACTATCAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT",
-                        "ATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAACTAAAATAGT\
-                         TCTATACTGCGCGTTTGGAGAAATAACTATCAATAGTTCTATACTGCGCGTTTGGAGAAACTAAAATAG"],
-                   foo(multi));
+                "ATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAACTAAAATAGT\
+                         TCTATACTGCGCGTTTGGAGAAATAACTATCAATAGTTCTATACTGCGCGTTTGGAGAAACTAAAATAG"
+            ],
+            foo(multi)
+        );
     }
 
     #[test]
@@ -85,15 +95,17 @@ mod tests {
 
         let foo = |f: FastaFile| -> Vec<String> {
             f.into_iter()
-                .map(|x: Fasta| {
-                    String::from_utf8(x.seq).unwrap()
-                })
+                .map(|x: Fasta| String::from_utf8(x.seq).unwrap())
                 .collect()
         };
 
-        assert_eq!(vec!["TCTATACTGCGCGTTTATCTAGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
-                         TCTATACTGCGCGTTTGGAGAAATAACTATCAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT"],
-                   foo(species_x));
+        assert_eq!(
+            vec![
+                "TCTATACTGCGCGTTTATCTAGGAGAAATAAAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT\
+                         TCTATACTGCGCGTTTGGAGAAATAACTATCAATAGTTCTATACTGCGCGTTTGGAGAAATAAAATAGT"
+            ],
+            foo(species_x)
+        );
     }
 
     #[test]
@@ -104,9 +116,7 @@ mod tests {
 
         let foo = |f: FastaFile| -> Vec<String> {
             f.into_iter()
-                .map(|x: Fasta| {
-                    String::from_utf8(x.header).unwrap()
-                })
+                .map(|x: Fasta| String::from_utf8(x.header).unwrap())
                 .collect()
         };
 

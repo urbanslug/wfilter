@@ -43,7 +43,7 @@ pub fn start() -> types::CliArgs {
                 .short("a")
                 .long("adapt")
                 .multiple(false)
-                .help("To apply adaptive wavefront alignment")
+                .help("To apply adaptive wavefront alignment"),
         )
         .arg(
             Arg::with_name("v")
@@ -60,11 +60,12 @@ pub fn start() -> types::CliArgs {
     let adapt: bool = matches.is_present("adapt");
     let verbosity_level: u8 = matches.occurrences_of("v") as u8;
 
-    types::CliArgs::new(verbosity_level,
-                        paf_file_path,
-                        target_file_path,
-                        query_file_path,
-                        None, // TODO: implement penalties
-                        adapt,
+    types::CliArgs::new(
+        verbosity_level,
+        paf_file_path,
+        target_file_path,
+        query_file_path,
+        None, // TODO: implement penalties
+        adapt,
     )
 }

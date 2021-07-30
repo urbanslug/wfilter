@@ -1,31 +1,37 @@
 use coitrees;
-use std::time::Instant;
 use std::collections::HashSet;
+use std::time::Instant;
 
 // local
 mod wflambda;
 
-mod utils;
 mod cli;
+mod fasta;
 mod index;
 mod io;
 mod paf;
-mod fasta;
 mod types;
+mod utils;
 
-fn filter(target: &fasta::FastaFile,
-          target_index: &types::Index,
-          query: &fasta::FastaFile,
-          query_index: &types::Index,
-          cli_args: &types::CliArgs) -> HashSet<usize> {
+fn filter(
+    target: &fasta::FastaFile,
+    target_index: &types::Index,
+    query: &fasta::FastaFile,
+    query_index: &types::Index,
+    cli_args: &types::CliArgs,
+) -> HashSet<usize> {
     let verbosity = cli_args.verbosity_level;
 
     let mut query_lines: HashSet<usize> = HashSet::new();
     let mut target_lines: HashSet<usize> = HashSet::new();
 
     let mut backtrace_lambda = |query: (i32, i32), target: (i32, i32)| {
-        let y = |i: &coitrees::IntervalNode<types::AlignmentMetadata, u32>| { target_lines.insert(i.metadata); };
-        let z = |i: &coitrees::IntervalNode<types::AlignmentMetadata, u32>| { query_lines.insert(i.metadata); };
+        let y = |i: &coitrees::IntervalNode<types::AlignmentMetadata, u32>| {
+            target_lines.insert(i.metadata);
+        };
+        let z = |i: &coitrees::IntervalNode<types::AlignmentMetadata, u32>| {
+            query_lines.insert(i.metadata);
+        };
 
         target_index.query(target.0, target.1, y);
         query_index.query(query.0, query.1, z);
@@ -35,14 +41,17 @@ fn filter(target: &fasta::FastaFile,
     for t in target.iter() {
         for q in query.iter() {
             if verbosity > 1 {
-                eprintln!("[wfilter::main::filter] Aligning {} length: {} bases and {} length: {} bases",
-                          std::str::from_utf8(&t.header[..]).unwrap(),
-                          utils::pretty_print_int(t.seq.len() as isize),
-                          std::str::from_utf8(&q.header[..]).unwrap(),
-                          utils::pretty_print_int(q.seq.len() as isize));
+                eprintln!(
+                    "[wfilter::main::filter] Aligning {} length: {} bases and {} length: {} bases",
+                    std::str::from_utf8(&t.header[..]).unwrap(),
+                    utils::pretty_print_int(t.seq.len() as isize),
+                    std::str::from_utf8(&q.header[..]).unwrap(),
+                    utils::pretty_print_int(q.seq.len() as isize)
+                );
             };
 
-            let aln = wflambda::wfa::wf_align(&t.seq[..], &q.seq[..], cli_args, &mut backtrace_lambda);
+            let aln =
+                wflambda::wfa::wf_align(&t.seq[..], &q.seq[..], cli_args, &mut backtrace_lambda);
 
             if verbosity > 3 {
                 eprintln!("score {}", aln.score);
@@ -105,12 +114,15 @@ fn main() {
     }
 
     let target: fasta::FastaFile = fasta::Fasta::from_path(&args.target_fasta[..]);
-    if verbosity  > 0 {
+    if verbosity > 0 {
         eprintln!(
             "[wfilter::main] done parsing target. Time taken {} seconds",
             now.elapsed().as_millis() as f64 / 1000.0
         );
-        eprintln!("[wfilter::main] Number of sequences in the target {}", target.len());
+        eprintln!(
+            "[wfilter::main] Number of sequences in the target {}",
+            target.len()
+        );
     }
 
     // Parse query fasta
@@ -124,7 +136,10 @@ fn main() {
             "[wfilter::main] done parsing query. Time taken {} seconds",
             now.elapsed().as_millis() as f64 / 1000.0
         );
-        eprintln!("[wfilter::main] Number of sequences in the query {}", query.len());
+        eprintln!(
+            "[wfilter::main] Number of sequences in the query {}",
+            query.len()
+        );
     }
 
     // ------------
@@ -147,16 +162,15 @@ fn main() {
             now.elapsed().as_millis() as f64 / 1000.0
         );
     }
-
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use super::paf;
-    use super::index;
-    use super::types::{Index, CliArgs};
     use super::fasta::Fasta;
+    use super::index;
+    use super::paf;
+    use super::types::{CliArgs, Index};
+    use super::*;
 
     static PAF_STRING: &str = "\
     qry\t330243\t0\t330243\t+\ttgt\t330243\t0\t330243\t330243\t330243\t60\tNM:i:0\tms:i:660486\
@@ -170,13 +184,12 @@ mod tests {
                           TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT\
                           TCTTTACTCGCGCGTTGGAGAAATACAATAGTTCTTTACTCGCGCGTTGGAGAAATACAATAGT";
 
-
     #[test]
     fn test_filter() {
         let alignments: paf::PAF = paf::PAF::from_str(PAF_STRING);
         let (query_index, target_index): (Index, Index) = index::index_paf_matches(&alignments);
 
-        let penalties =  types::Penalties {
+        let penalties = types::Penalties {
             mismatch: 4,
             matches: 0,
             gap_open: 6,
@@ -191,7 +204,6 @@ mod tests {
             penalties: penalties,
             adapt: false,
         };
-
 
         let text = Fasta::from_str(TEXT);
         let query = Fasta::from_str(QUERY);

@@ -20,12 +20,14 @@ pub struct CliArgs {
 
 impl CliArgs {
     #[allow(dead_code)] // TODO: exists for testing purposes
-    pub fn new(verbosity_level: u8,
-               paf_filepath: &str,
-               target_filepath: &str,
-               query_filepath: &str,
-               penalties: Option<Penalties>,
-               adapt: bool) -> Self {
+    pub fn new(
+        verbosity_level: u8,
+        paf_filepath: &str,
+        target_filepath: &str,
+        query_filepath: &str,
+        penalties: Option<Penalties>,
+        adapt: bool,
+    ) -> Self {
         let penalties = match penalties {
             Some(p) => p,
             _ => Penalties {
@@ -33,7 +35,7 @@ impl CliArgs {
                 matches: 0,
                 gap_open: 6,
                 gap_extend: 2,
-            }
+            },
         };
 
         CliArgs {
@@ -42,7 +44,7 @@ impl CliArgs {
             target_fasta: String::from(target_filepath),
             query_fasta: String::from(query_filepath),
             penalties,
-            adapt
+            adapt,
         }
     }
 }

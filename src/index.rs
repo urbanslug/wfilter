@@ -12,7 +12,7 @@ fn compute_match_intervals(
     start: u32,
     _stop: u32,
     cigar: &str,
-    line_num: usize
+    line_num: usize,
 ) -> Vec<types::Interval> {
     let mut intervals: Vec<types::Interval> = Vec::new();
     let mut buffer = String::new();
@@ -85,7 +85,7 @@ pub fn index_paf_matches(p: &paf::PAF) -> (types::Index, types::Index) {
                 a.target_start,
                 a.target_end,
                 &a.cigar[..],
-                line_num
+                line_num,
             );
             let mut q = compute_match_intervals(
                 types::SequenceType::Query,
@@ -93,7 +93,7 @@ pub fn index_paf_matches(p: &paf::PAF) -> (types::Index, types::Index) {
                 a.query_start,
                 a.query_end,
                 &a.cigar[..],
-                line_num
+                line_num,
             );
 
             query_intervals.append(&mut q);
@@ -105,14 +105,18 @@ pub fn index_paf_matches(p: &paf::PAF) -> (types::Index, types::Index) {
             // Generate coitrees::IntervalNodes
             let interval_nodes: Vec<coitrees::IntervalNode<types::AlignmentMetadata, u32>> =
                 intervals
-                .iter()
-                .map(|types::Interval(start, stop, line_num): &types::Interval| {
-                    let start = i32::try_from(*start).expect("[index::index_paf] Could not convert start u32 to i32");
-                    let end = i32::try_from(*stop).expect("[index::index_paf] Could not convert end u32 to i32");
+                    .iter()
+                    .map(|types::Interval(start, stop, line_num): &types::Interval| {
+                        let start = i32::try_from(*start)
+                            .expect("[index::index_paf] Could not convert start u32 to i32");
+                        let end = i32::try_from(*stop)
+                            .expect("[index::index_paf] Could not convert end u32 to i32");
 
-                    coitrees::IntervalNode::<types::AlignmentMetadata, u32>::new(start, end, *line_num)
-                })
-                .collect();
+                        coitrees::IntervalNode::<types::AlignmentMetadata, u32>::new(
+                            start, end, *line_num,
+                        )
+                    })
+                    .collect();
 
             coitrees::COITree::new(interval_nodes)
         };
@@ -137,7 +141,7 @@ mod tests {
             0,
             330243,
             "330243M",
-            0
+            0,
         );
         let intervals: Vec<types::Interval> = vec![types::Interval(0, 330243, 0)];
         assert_eq!(intervals, intervals_computed);
@@ -149,7 +153,7 @@ mod tests {
             41052,
             324759,
             cg,
-            0
+            0,
         );
         let intervals: Vec<types::Interval> = vec![];
         assert_eq!(intervals, intervals_computed);
@@ -160,7 +164,7 @@ mod tests {
             0,
             283680,
             cg,
-            0
+            0,
         );
         let intervals: Vec<types::Interval> = vec![];
         assert_eq!(intervals, intervals_computed);

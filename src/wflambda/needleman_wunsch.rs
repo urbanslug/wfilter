@@ -263,7 +263,6 @@ mod tests {
         let pattern_window = &PATTERN[12..24];
         assert_eq!(needleman_wunsch(text_window, pattern_window), ());
 
-
         let text = &TEXT[..];
         let pattern = &PATTERN[..];
         let mut aln: &mut AlignmentMatrixWrapper = &mut AlignmentMatrixWrapper::init(text, pattern);

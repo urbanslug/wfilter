@@ -42,7 +42,7 @@ fn filter(
         for q in query.iter() {
             if verbosity > 1 {
                 eprintln!(
-                    "[wfilter::main::filter] Aligning {} length: {} bases and {} length: {} bases",
+                    "[wfilter::main::filter] Aligning name: \"{}\" length (bases): {} and name: \"{}\" length (bases): {}",
                     std::str::from_utf8(&t.header[..]).unwrap(),
                     utils::pretty_print_int(t.seq.len() as isize),
                     std::str::from_utf8(&q.header[..]).unwrap(),
@@ -172,6 +172,8 @@ mod tests {
     use super::types::{CliArgs, Index};
     use super::*;
 
+    use chrono::Local;
+
     static PAF_STRING: &str = "\
     qry\t330243\t0\t330243\t+\ttgt\t330243\t0\t330243\t330243\t330243\t60\tNM:i:0\tms:i:660486\
     \tAS:i:660486\tnn:i:0\ttp:A:P\tcm:i:62290\ts1:i:329202\ts2:i:262341\tde:f:0\trl:i:2730\
@@ -203,6 +205,8 @@ mod tests {
             query_fasta: String::new(),
             penalties: penalties,
             adapt: false,
+            generate_alignment_tsv: false,
+            start_time: Local::now(),
         };
 
         let text = Fasta::from_str(TEXT);

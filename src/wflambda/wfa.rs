@@ -128,6 +128,10 @@ pub mod types {
     use super::super::super::types::Penalties;
     use std::cmp::max;
 
+    use indicatif::{ProgressBar, ProgressStyle};
+    use std::fs::OpenOptions;
+    use std::io::prelude::*;
+
     pub type Offset = usize;
     pub type DpMatrix = Vec<Vec<Option<usize>>>;
 
@@ -314,19 +318,36 @@ pub mod types {
             eprint!("\n\n");
         }
 
-        pub fn print_tsv(&self) {
+        pub fn print_tsv(&self, filename: &str) {
             let dp_matrix = &self.dp_matrix;
             let query = self.query;
             let text = self.text;
 
-            println!("text\tquery\tscore\tqbase\ttbase");
+            let mut file = OpenOptions::new()
+                .write(true)
+                .append(true)
+                .create(true)
+                .open(filename)
+                .unwrap();
+
+            let progress_bar = ProgressBar::new(dp_matrix.len() as u64);
+            let template = "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos:>7}/{len:7} ({eta_precise})";
+            let progress_style = ProgressStyle::default_bar()
+                .template(template)
+                .progress_chars("=> ");
+            progress_bar.set_style(progress_style);
+
+            writeln!(file, "text\tquery\tscore\tqbase\ttbase").unwrap();
+
             dp_matrix.iter().enumerate().for_each(|(i, row)| {
+                progress_bar.inc(1);
                 row.iter().enumerate().for_each(|(j, col)| match col {
                     Some(score) => {
-                        println!(
+                        writeln!(
+                            file,
                             "{}\t{}\t{}\t{}\t{}",
                             i, j, score, query[j] as char, text[i] as char
-                        );
+                        ).unwrap();
                     }
                     None => {}
                 });
@@ -537,8 +558,17 @@ fn reduce(wavefronts: &mut Wavefronts, score: usize) {
     let mut min_distance: usize = max(qlen, tlen);
 
     for k in lo..hi {
+        let i = k;
         let k: usize = compute_k(k, a_k);
-        let offset: usize = *m_wavefront.offsets.get(k).unwrap();
+        let s = format!("i={} k={}", i, k);
+
+        let offset: Option<&usize> = m_wavefront.offsets.get(k);
+
+        if offset.is_none() {
+            continue
+        }
+
+        let offset: usize = *offset.unwrap();
 
         let left_v: usize = if offset >= k && qlen >= (offset - k) {
             qlen - (offset - k)
@@ -855,7 +885,7 @@ fn wf_next(wavefronts: &mut Wavefronts, score: usize, cli_args: &CliArgs) {
         let k: usize = compute_k(k, wavefronts.central_diagonal);
 
         let imax = *vec![
-            if s - o - e < 0 || k <= 0 || k + 1 >= wavefronts.diagonals {
+            if s - o - e < 0 || k == 0 || k + 1 >= wavefronts.diagonals {
                 0
             } else {
                 wavefronts
@@ -865,7 +895,7 @@ fn wf_next(wavefronts: &mut Wavefronts, score: usize, cli_args: &CliArgs) {
                     .unwrap()
                     .offsets[(k - 1) as usize] as isize
             },
-            if s - e < 0 || k <= 0 || k + 1 >= wavefronts.diagonals {
+            if s - e < 0 || k == 0 || k + 1 >= wavefronts.diagonals {
                 0
             } else {
                 wavefronts
@@ -1196,11 +1226,10 @@ where
 
     // Progress bar
     let bar = ProgressBar::new(a_offset as u64).with_prefix("\t");
-    let template =
-        "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})";
+    let template = "{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta_precise})";
     let progress_style = ProgressStyle::default_bar()
         .template(template)
-        .progress_chars("#>-");
+        .progress_chars("=> ");
     bar.set_style(progress_style);
     let mut progress_value: u64 = 0;
 
@@ -1257,8 +1286,14 @@ where
                 );
             }
 
-            if verbosity > 3 {
-                wavefronts.print_tsv();
+            if cli_args.generate_alignment_tsv {
+                let adapt_str: &str = if cli_args.adapt {"adapt"} else {"no_adapt"};
+                let now: String = cli_args.start_time.format("%Y-%m-%d_%H-%M-%S").to_string();
+                let filename = format!("wfilter-{}-{}.tsv", adapt_str, now);
+
+                eprintln!("[wfa::align] Generating alignment tsv: {}", filename);
+
+                wavefronts.print_tsv(&filename[..]);
             }
 
             let cigar = backtrace(&mut wavefronts, score, verbosity, backtrace_lambda);
@@ -1279,6 +1314,7 @@ where
 mod tests {
     use super::*;
     use crate::types::Penalties;
+    use chrono::Local;
 
     static PENALTIES: Penalties = Penalties {
         mismatch: 4,
@@ -1294,6 +1330,8 @@ mod tests {
         query_fasta: String::new(),
         penalties: PENALTIES,
         adapt: false,
+        generate_alignment_tsv: false,
+        start_time: Local::now(),
     };
 
     static CLI_ADAPT: CliArgs = CliArgs {
@@ -1303,6 +1341,8 @@ mod tests {
         query_fasta: String::new(),
         penalties: PENALTIES,
         adapt: true,
+        generate_alignment_tsv: false,
+        start_time: Local::now(),
     };
 
     fn mock_backtrace_lambda(_query: (i32, i32), _target: (i32, i32)) {}

@@ -1,5 +1,6 @@
 use coitrees;
 use std::fmt;
+use chrono::{DateTime, Local};
 
 #[derive(Copy, Clone)]
 pub struct Penalties {
@@ -16,6 +17,8 @@ pub struct CliArgs {
     pub query_fasta: String,
     pub penalties: Penalties,
     pub adapt: bool,
+    pub generate_alignment_tsv: bool,
+    pub start_time: DateTime<Local>,
 }
 
 impl CliArgs {
@@ -27,6 +30,7 @@ impl CliArgs {
         query_filepath: &str,
         penalties: Option<Penalties>,
         adapt: bool,
+        generate_alignment_tsv: bool,
     ) -> Self {
         let penalties = match penalties {
             Some(p) => p,
@@ -45,6 +49,8 @@ impl CliArgs {
             query_fasta: String::from(query_filepath),
             penalties,
             adapt,
+            generate_alignment_tsv,
+            start_time: Local::now(),
         }
     }
 }
